@@ -244,7 +244,7 @@ input[type=range]{flex:1;accent-color:var(--amber);}
 /* ═══════════════════════════════════════════
    모바일 반응형
 ═══════════════════════════════════════════ */
-@media(max-width:768px){
+@media(max-width:1024px){
   .sidebar{display:none;}
   .mobile-top{display:flex !important;}
   .kpi-grid.c4{grid-template-columns:repeat(2,1fr);}
@@ -302,7 +302,7 @@ input[type=range]{flex:1;accent-color:var(--amber);}
   </div>
 
   <!-- ══ TAB 0: 유동성&시장 ══ -->
-  <div id="t0">
+  <div id="t0" style="display:flex;flex-direction:column;gap:12px;">
 
     <!-- 파이프 압력 -->
     <div class="pipe-title">금융 배관 — 구간별 압력 현황</div>
@@ -712,7 +712,9 @@ function goTab(n, btn) {
     if (el) el.style.display = 'none';
   });
   const t = document.getElementById('t'+n);
-  if (t) t.style.display = 'block';
+  if (t) t.style.display = 'flex';
+  t.style.flexDirection = 'column';
+  t.style.gap = '12px';
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   if (btn) btn.classList.add('active');
 }
@@ -772,10 +774,10 @@ function getLatest(obs) {
 // 포맷
 function fmt(v, unit='', digits=2) {
   if (v===null||isNaN(v)) return '—';
-  if (unit==='T') return `$${(v/1e6).toFixed(2)}T`;
-  if (unit==='B') return `$${(v/1e3).toFixed(0)}B`;
+  if (unit==='T') return `$${v.toFixed(digits)}T`;   // 이미 조달러로 변환된 값
+  if (unit==='B') return `$${v.toFixed(0)}B`;
   if (unit==='%') return `${v.toFixed(digits)}%`;
-  if (unit==='bp') return `${(v*100).toFixed(0)}bp`;
+  if (unit==='bp') return `${v.toFixed(0)}bp`;
   if (unit==='$') return `$${v.toFixed(digits)}`;
   return v.toFixed(digits);
 }
@@ -958,8 +960,7 @@ async function loadAllFRED() {
                    'BAMLH0A0HYM2','DTWEXBGS','DRTSCILM','WRMFNS','WRMFSL'];
   // 배치 2: B 모듈 (금리)
   const batch2 = ['DGS2','DGS5','DGS10','DGS30','T10Y2Y','T10Y3M','DFII10','T10YIE','EFFR'];
-  // 배치 3: C 모듈 (물가)
-  // CPMNACSABB(중국PMI) → FRED 없음, NAPMPMI(ISM) → FRED 없음 → 제외
+  // 배치 3: C 모듈 (물가) — YoY 계산 위해 14개월치 필요
   const batch3 = ['CPIAUCSL','CPILFESL','PPIACO','PCEPI','MICH',
                    'DCOILWTICO','DCOILBRENTEU','DHHNGSP',
                    'PCOPPUSDM','PALUMUSDM','PWHEAMTUSDM'];
@@ -975,19 +976,35 @@ async function loadAllFRED() {
 
   try {
     const allBatches = [...batch1,...batch2,...batch3,...batch4,...batch5];
-    const results = await Promise.allSettled(allBatches.map(id => fredFetch(id)));
+    // 월간 지표(YoY용)는 14개월치 별도 호출
+    const yoySeriesIds = ['CPIAUCSL','CPILFESL','PPIACO','PCEPI'];
+    const [mainResults, yoyResults] = await Promise.all([
+      Promise.allSettled(allBatches.map(id => fredFetch(id, 2))),
+      Promise.allSettled(yoySeriesIds.map(id => fredFetch(id, 14))),
+    ]);
 
     const d = {};
-    results.forEach((r,i) => {
+    mainResults.forEach((r,i) => {
       const id = allBatches[i];
       if (r.status==='fulfilled') {
-        const {v,p,d:date,delta} = getLatest(r.value.obs);
+        const {v,p,date,delta} = getLatest(r.value.obs);
         d[id] = {v,p,date,delta};
+      }
+    });
+    // YoY 시리즈: 최신값(index 0)과 12개월 전(index 12)
+    yoyResults.forEach((r,i) => {
+      const id = yoySeriesIds[i];
+      if (r.status==='fulfilled') {
+        const obs = r.value.obs;
+        const latest = obs[0]  ? parseFloat(obs[0].value)  : null;
+        const yr_ago = obs[12] ? parseFloat(obs[12].value) : (obs[obs.length-1] ? parseFloat(obs[obs.length-1].value) : null);
+        d[id+'__ylatest'] = latest;
+        d[id+'__yprev']   = yr_ago;
       }
     });
 
     // ─── A모듈 표시 ───
-    const res = d['TOTRESNS']?.v; // 백만 달러
+    const res = d['TOTRESNS']?.v; // 십억 달러 (Billion USD)
     const rrp = d['RRPONTSYD']?.v;
     const sofr = d['SOFR']?.v;
     const iorb = d['IORB']?.v;
@@ -997,12 +1014,12 @@ async function loadAllFRED() {
     const sloos = d['DRTSCILM']?.v;
     const mmf = d['WRMFNS']?.v;
     const sofrIorb = (sofr!==null&&iorb!==null) ? sofr-iorb : null;
-    const buffer = (res!==null&&rrp!==null) ? (res+rrp)/1e6 : null; // 조 달러
+    const buffer = (res!==null&&rrp!==null) ? (res+rrp)/1000 : null; // 조 달러
 
     // 점수 계산
-    const reserveScore = res ? (res/1e6 < 2.0 ? 10 : res/1e6 < 2.5 ? 5 : 0) : 0;
+    const reserveScore = res ? (res/1000 < 2.0 ? 10 : res/1000 < 2.5 ? 5 : 0) : 0;
     const sofrScore    = sofrIorb ? (sofrIorb > 10 ? 10 : sofrIorb > 5 ? 5 : 0) : 0;
-    const rrpScore     = rrp ? (rrp/1e6 < 0.05 ? 5 : 0) : 5;
+    const rrpScore     = rrp ? (rrp/1000 < 0.05 ? 5 : 0) : 5;
     const tgaScore     = 0; // 주간 변화율 기반 — 단순화
     const hyScore      = hyoas ? (hyoas > 600 ? 10 : hyoas > 400 ? 5 : 0) : 0;
     const mmfScore     = 0;
@@ -1010,23 +1027,29 @@ async function loadAllFRED() {
     const sloosScore   = sloos ? (sloos > 40 ? 10 : sloos > 10 ? 5 : 0) : 0;
 
     Object.assign(latestData, {
-      reserves:res/1e6, rrp:rrp?rrp/1e6:null, sofr, iorb, sofrIorb,
-      buffer: (res!==null&&rrp!==null)?(res+rrp)/1e6:null,
-      tga:tga?tga/1e6:null, hyoas, bdxy, sloos, mmf:mmf?mmf/1e6:null,
+      reserves:res/1000, rrp:rrp?rrp/1000:null, sofr, iorb, sofrIorb,
+      buffer: (res!==null&&rrp!==null)?(res+rrp)/1000:null,
+      tga:tga?tga/1e6:null, hyoas, bdxy, sloos, mmf:mmf?mmf/1000:null,
       reserveScore, sofrScore, rrpScore, tgaScore, hyScore, mmfScore, dxyScore, sloosScore
     });
 
-    setKpi('A1', fmt(res/1e6,'T'), deltaStr(d['TOTRESNS']?.delta/1e6,'T'), reserveScore>=6?'r':reserveScore>=3?'a':'g');
+    // TOTRESNS=2967.9B → /1000=2.97T, RRPONTSYD=0.857B → /1000=0.001T
+    // WTREGEN=853052M  → /1e6=0.85T,  WRMFNS=2267.7B   → /1000=2.27T
+    setKpi('A1', res  ? `$${(res/1000).toFixed(2)}T` :'—', d['TOTRESNS']?.delta ? `${d['TOTRESNS'].delta>0?'+':''}${(d['TOTRESNS'].delta/1000).toFixed(3)}T` : '', reserveScore>=6?'r':reserveScore>=3?'a':'g');
     setKpi('A2', sofr ? sofr.toFixed(2)+'%':'—', deltaStr(d['SOFR']?.delta,'%'), 'g');
     setKpi('A3', iorb ? iorb.toFixed(2)+'%':'—', deltaStr(d['IORB']?.delta,'%'), 'g');
-    setKpi('A4', sofrIorb!==null ? (sofrIorb*100).toFixed(1)+'bp':'—', '', sofrScore>=6?'r':sofrScore>=3?'a':'g');
-    setKpi('A5', fmt(rrp/1e6,'T'), '', rrpScore>=3?'a':'g');
-    setKpi('A6', buffer!==null?`$${buffer.toFixed(2)}T`:'—', '', 'g');
-    setKpi('A7', fmt(tga/1e6,'T'), deltaStr(d['WTREGEN']?.delta/1e6,'T'), 'g');
+    // SOFR-IORB 스프레드: 이미 % 단위이므로 *100 불필요
+    setKpi('A4', sofrIorb!==null ? (sofrIorb).toFixed(3)+'%':'—', '', sofrScore>=6?'r':sofrScore>=3?'a':'g');
+    // RRPONTSYD: 십억달러 → /1000 = 조달러
+    setKpi('A5', rrp ? `$${(rrp/1000).toFixed(3)}T` : '—', '', rrpScore>=3?'a':'g');
+    setKpi('A6', buffer!==null ? `$${buffer.toFixed(2)}T` : '—', '', buffer&&buffer>3?'g':buffer&&buffer>2.5?'a':'r');
+    // WTREGEN: 백만달러 → /1e6 = 조달러
+    setKpi('A7', tga  ? `$${(tga/1e6).toFixed(2)}T`  : '—', d['WTREGEN']?.delta ? `${d['WTREGEN'].delta>0?'+':''}${(d['WTREGEN'].delta/1e6).toFixed(3)}T` : '', 'g');
     setKpi('A8', hyoas ? hyoas.toFixed(0)+'bp':'—', deltaStr(d['BAMLH0A0HYM2']?.delta,'bp'), hyScore>=6?'r':hyScore>=3?'a':'g');
     setKpi('A9', bdxy ? bdxy.toFixed(1):'—', deltaStr(d['DTWEXBGS']?.delta), 'g');
     setKpi('A10', sloos ? sloos.toFixed(1)+'%':'—', '', sloosScore>=6?'r':sloosScore>=3?'a':'g');
-    setKpi('A11', fmt(mmf/1e6,'T'), '', 'g');
+    // WRMFNS: 십억달러 → /1000 = 조달러
+    setKpi('A11', mmf  ? `$${(mmf/1000).toFixed(2)}T`  : '—', '', 'g');
 
     // ─── B모듈 표시 ───
     const y2=d['DGS2']?.v, y5=d['DGS5']?.v, y10=d['DGS10']?.v, y30=d['DGS30']?.v;
@@ -1044,10 +1067,17 @@ async function loadAllFRED() {
     if (y2&&y5&&y10&&y30) drawYieldCurve(y2,y5,y10,y30);
 
     // ─── C모듈 표시 ───
-    const cpiYoY = computeYoY(d['CPIAUCSL']?.v, d['CPIAUCSL']?.p);
-    const coreCpiYoY = computeYoY(d['CPILFESL']?.v, d['CPILFESL']?.p);
-    const ppiYoY = computeYoY(d['PPIACO']?.v, d['PPIACO']?.p);
-    const pceYoY = computeYoY(d['PCEPI']?.v, d['PCEPI']?.p);
+    // YoY 계산 (13개월치 데이터 활용)
+    const computeYoYFromKey = (id) => {
+      const latest = d[id+'__ylatest'];
+      const yrAgo  = d[id+'__yprev'];
+      if (latest===null||yrAgo===null||!yrAgo) return null;
+      return ((latest - yrAgo) / Math.abs(yrAgo)) * 100;
+    };
+    const cpiYoY     = computeYoYFromKey('CPIAUCSL');
+    const coreCpiYoY = computeYoYFromKey('CPILFESL');
+    const ppiYoY     = computeYoYFromKey('PPIACO');
+    const pceYoY     = computeYoYFromKey('PCEPI');
 
     setKpi('C1', cpiYoY?cpiYoY.toFixed(2)+'%':'—', '', cpiYoY>4?'r':cpiYoY>2.5?'a':'g');
     setKpi('C2', coreCpiYoY?coreCpiYoY.toFixed(2)+'%':'—', '', coreCpiYoY>4?'r':coreCpiYoY>2.5?'a':'g');
@@ -1243,53 +1273,60 @@ function loadCNNFG() {
 async function loadH41() {
   setStatus('H41','로딩중','var(--amber)');
   try {
-    const cKey = 'h41';
+    const cKey = 'h41_v2';
     let data = getCached(cKey);
     if (!data) {
       const resp = await fetch(`${WORKER}/h41`);
       data = await resp.json();
-      setCache(cKey, data);
+      if (data.success) setCache(cKey, data);
     }
-    if (data?.data) {
-      const d = data.data;
-      const dateStr = d.releaseDate || '—';
-      document.getElementById('h41date').textContent = `H.4.1 기준 · ${dateStr}`;
-      document.getElementById('fedUpdated').textContent = dateStr;
-      document.getElementById('fedSbDate').textContent = `(last updated ${dateStr})`;
+    if (!data?.success) {
+      throw new Error(data?.error || 'H41 응답 오류');
+    }
 
-      const ta   = d.totalAssets;
-      const tres = d.treasurySecurities;
-      const mbs  = d.mbsHoldings;
-      const res  = d.totalReserves;
-      const rrp  = d.reverseRepo;
-      const tga  = d.tgaBalance;
+    const d    = data.data;
+    const date = data.releaseDate || '—';
 
-      document.getElementById('h41content').innerHTML = `
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-          <div>
-            <div style="font-size:9px;font-weight:700;color:var(--txt2);text-transform:uppercase;margin-bottom:5px;">자산 변동</div>
-            <div class="popup-row"><span class="popup-key">총 자산</span><span class="popup-v n">${ta?'$'+(ta/1e3).toFixed(2)+'T':'—'}</span></div>
-            <div class="popup-row"><span class="popup-key">국채 보유</span><span class="popup-v n">${tres?'$'+(tres/1e3).toFixed(2)+'T':'—'}</span></div>
-            <div class="popup-row"><span class="popup-key">MBS 보유</span><span class="popup-v n">${mbs?'$'+(mbs/1e3).toFixed(2)+'T':'—'}</span></div>
-            <div class="popup-row"><span class="popup-key">은행 준비금</span><span class="popup-v g">${res?'$'+(res/1e3).toFixed(2)+'T':'—'}</span></div>
-            <div class="popup-row"><span class="popup-key">역레포 (RRP)</span><span class="popup-v n">${rrp?'$'+(rrp/1e3).toFixed(2)+'T':'—'}</span></div>
-            <div class="popup-row"><span class="popup-key">TGA 잔고</span><span class="popup-v n">${tga?'$'+(tga/1e3).toFixed(2)+'T':'—'}</span></div>
-          </div>
-          <div>
-            <div style="font-size:9px;font-weight:700;color:var(--txt2);text-transform:uppercase;margin-bottom:5px;">해석</div>
-            <div style="font-size:10px;color:var(--txt2);line-height:1.7;">
-              H.4.1 파싱 완료.<br>
-              상세 만기 구조(Table 5)는 Worker 업그레이드 후 제공됩니다.
-            </div>
-          </div>
+    document.getElementById('h41date')    && (document.getElementById('h41date').textContent    = `H.4.1 기준 · ${date}`);
+    document.getElementById('fedUpdated') && (document.getElementById('fedUpdated').textContent  = date);
+    document.getElementById('fedSbDate')  && (document.getElementById('fedSbDate').textContent   = `(last updated ${date})`);
+
+    const fmtB = (v) => v!==null&&v!==undefined ? `$${(v/1000).toFixed(2)}T` : '—';
+    const fmtD = (v) => v!==null&&v!==undefined ? `${v>0?'+':''}${(v/1000).toFixed(3)}T` : '';
+
+    const ta   = d?.WALCL?.value;
+    const tres = d?.WSHOTSL?.value;
+    const mbs  = d?.WMBSEC?.value;
+    const res  = d?.TOTRESNS?.value;
+    const rrp  = d?.RRPONTSYD?.value;
+    const tga  = d?.WTREGEN?.value;
+
+    const taDelta   = d?.WALCL?.delta;
+    const tresDelta = d?.WSHOTSL?.delta;
+
+    document.getElementById('h41content') && (document.getElementById('h41content').innerHTML = `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div>
+          <div style="font-size:9px;font-weight:700;color:var(--txt2);text-transform:uppercase;margin-bottom:5px;">자산 (Billion USD)</div>
+          <div class="popup-row"><span class="popup-key">총 자산 (WALCL)</span><span class="popup-v ${taDelta<0?'r':'g'}">${fmtB(ta)} ${fmtD(taDelta)}</span></div>
+          <div class="popup-row"><span class="popup-key">국채 보유 (WSHOTSL)</span><span class="popup-v ${tresDelta<0?'r':'g'}">${fmtB(tres)} ${fmtD(tresDelta)}</span></div>
+          <div class="popup-row"><span class="popup-key">MBS 보유 (WMBSEC)</span><span class="popup-v n">${fmtB(mbs)}</span></div>
         </div>
-        <div class="popup-ai"><strong>🤖 자동 해석:</strong> H.4.1 데이터 로드 완료. 준비금·TGA·RRP 삼각 흐름을 지속 모니터링 중. 만기별 구조 분석은 다음 업데이트에서 제공됩니다.</div>
-      `;
-    }
+        <div>
+          <div style="font-size:9px;font-weight:700;color:var(--txt2);text-transform:uppercase;margin-bottom:5px;">부채 (Billion USD)</div>
+          <div class="popup-row"><span class="popup-key">은행 준비금 (TOTRESNS)</span><span class="popup-v g">${fmtB(res)}</span></div>
+          <div class="popup-row"><span class="popup-key">역레포 ON RRP</span><span class="popup-v n">${fmtB(rrp)}</span></div>
+          <div class="popup-row"><span class="popup-key">TGA 재무부 계정</span><span class="popup-v a">${fmtB(tga)}</span></div>
+        </div>
+      </div>
+      <div class="popup-ai"><strong>🤖 자동 해석:</strong> 총자산 ${fmtB(ta)} — 전주 대비 ${fmtD(taDelta)}. 국채 보유 ${fmtB(tres)}, MBS ${fmtB(mbs)}. QT 진행 중. 준비금 ${fmtB(res)} 유지.</div>
+    `);
+
     setStatus('H41','연결됨','var(--green)');
   } catch(e) {
     setStatus('H41','오류','var(--red)');
-    document.getElementById('h41content').innerHTML = '<div style="color:var(--rtx);font-size:10px;">H.4.1 로딩 실패: '+e.message+'</div>';
+    document.getElementById('h41content') && (document.getElementById('h41content').innerHTML = `<div style="color:var(--rtx);font-size:11px;">⚠️ ${e.message}<br><span style="color:var(--txt2);font-size:10px;">CF Worker의 FRED_API_KEY 환경변수가 설정되어 있는지 확인하세요.</span></div>`);
+    console.error('H41 load error:', e);
   }
 }
 
