@@ -1,0 +1,1312 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MacroLens — 글로벌 유동성 모니터</title>
+<style>
+/* ═══════════════════════════════════════════
+   CSS 변수 — 라이트 / 다크 테마
+═══════════════════════════════════════════ */
+:root {
+  --bg:#F6F8FA; --bg2:#FFFFFF; --bg3:#EAEEF2;
+  --border:#D0D7DE; --border2:#EAEEF2;
+  --txt:#1F2328; --txt2:#656D76; --txt3:#ADBAC7;
+  --green:#1A7F5A; --gbg:#DAFBE1; --gtx:#1A7F5A;
+  --amber:#9A6700; --abg:#FFF8C5; --atx:#9A6700;
+  --red:#CF222B;   --rbg:#FFEBE9; --rtx:#CF222B;
+  --blue:#0969DA;  --bbg:#DDF4FF; --btx:#0969DA;
+  --gt:#D0D7DE;
+}
+.dark {
+  --bg:#0D1117; --bg2:#161B22; --bg3:#21262D;
+  --border:#30363D; --border2:#21262D;
+  --txt:#E6EDF3; --txt2:#8B949E; --txt3:#484F58;
+  --green:#3FB950; --gbg:#0D3321; --gtx:#3FB950;
+  --amber:#F0B429; --abg:#2D1F00; --atx:#F0B429;
+  --red:#F85149;   --rbg:#3D0000; --rtx:#F85149;
+  --blue:#58A6FF;  --bbg:#0C2D6B; --btx:#58A6FF;
+  --gt:#21262D;
+}
+
+/* ═══════════════════════════════════════════
+   리셋 & 베이스
+═══════════════════════════════════════════ */
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;background:var(--bg);color:var(--txt);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:13px;transition:background .2s,color .2s;}
+
+/* ═══════════════════════════════════════════
+   HEADER
+═══════════════════════════════════════════ */
+.hdr{position:sticky;top:0;z-index:50;background:var(--bg);border-bottom:1px solid var(--border);padding:0 20px;height:44px;display:flex;align-items:center;gap:12px;}
+.logo{font-size:15px;font-weight:800;letter-spacing:.07em;color:var(--txt);cursor:pointer;user-select:none;flex-shrink:0;line-height:1;}
+.logo em{color:var(--amber);font-style:normal;}
+.logo:hover{opacity:.7;}
+.hsp{flex:1;}
+.hdr-time{font-size:10px;color:var(--txt2);flex-shrink:0;}
+.live{font-size:9px;font-weight:700;padding:2px 7px;border-radius:3px;background:var(--gbg);color:var(--gtx);flex-shrink:0;}
+.theme-btn{width:26px;height:26px;border-radius:4px;border:0.5px solid var(--border);background:var(--bg);color:var(--txt);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0;transition:background .15s;}
+.theme-btn:hover{background:var(--bg3);}
+
+/* ═══════════════════════════════════════════
+   TAB NAV — 텍스트만, 박스 없음
+═══════════════════════════════════════════ */
+.tab-nav{background:var(--bg);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 20px;overflow-x:auto;}
+.tab-nav::-webkit-scrollbar{display:none;}
+.tab-btn{background:none;border:none;border-bottom:2px solid transparent;margin-bottom:-1px;padding:10px 16px;font-family:inherit;font-size:12px;font-weight:400;color:var(--txt2);cursor:pointer;white-space:nowrap;transition:color .15s;}
+.tab-btn:hover{color:var(--txt);}
+.tab-btn.active{color:var(--txt);font-weight:600;border-bottom-color:var(--amber);}
+.fed-tab{background:none;border:none;border-bottom:2px solid transparent;margin-bottom:-1px;padding:6px 16px;font-family:inherit;cursor:pointer;display:flex;flex-direction:column;justify-content:center;margin-left:auto;flex-shrink:0;transition:opacity .15s;}
+.fed-tab:hover{opacity:.7;}
+.ft1{font-size:11px;font-weight:600;color:var(--rtx);line-height:1.3;}
+.ft2{font-size:9px;color:var(--txt2);margin-top:1px;}
+
+/* ═══════════════════════════════════════════
+   BODY LAYOUT
+═══════════════════════════════════════════ */
+.body-wrap{display:flex;min-height:calc(100vh - 88px);}
+.main-area{flex:1;min-width:0;padding:14px;display:flex;flex-direction:column;gap:12px;}
+.sidebar{width:220px;flex-shrink:0;border-left:1px solid var(--border);background:var(--bg);padding:12px;display:flex;flex-direction:column;gap:8px;overflow-y:auto;transition:background .2s;}
+.sidebar::-webkit-scrollbar{width:3px;}
+.sidebar::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
+
+/* ═══════════════════════════════════════════
+   공통 컴포넌트
+═══════════════════════════════════════════ */
+.sec-ttl{font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--txt3);margin-bottom:5px;}
+.sep{height:1px;background:var(--border);}
+.pill{font-size:7px;font-weight:700;padding:1px 5px;border-radius:3px;display:inline-block;}
+.p-g{background:var(--gbg);color:var(--gtx);}
+.p-a{background:var(--abg);color:var(--atx);}
+.p-r{background:var(--rbg);color:var(--rtx);}
+.p-b{background:var(--bbg);color:var(--btx);}
+.card{background:var(--bg2);border:0.5px solid var(--border);border-radius:7px;padding:10px 12px;transition:background .2s;}
+.card.g{background:var(--gbg);border-color:var(--green);}
+.card.a{background:var(--abg);border-color:var(--amber);}
+.card.r{background:var(--rbg);border-color:var(--red);}
+.mono{font-family:"SF Mono","Fira Code",monospace;font-size:10px;}
+.up{color:var(--rtx);}.dn{color:var(--gtx);}.flat{color:var(--txt2);}
+.loading{color:var(--txt3);font-size:10px;animation:pulse 1.5s infinite;}
+@keyframes pulse{0%,100%{opacity:.4;}50%{opacity:1;}}
+.err{color:var(--rtx);font-size:10px;}
+
+/* ═══════════════════════════════════════════
+   SIDEBAR 컴포넌트
+═══════════════════════════════════════════ */
+/* 스트레스 게이지 */
+.stress-card{background:var(--bg2);border:0.5px solid var(--border);border-radius:7px;padding:9px 10px;}
+.stress-top{display:flex;align-items:baseline;gap:6px;margin-bottom:7px;}
+.stress-score{font-size:24px;font-weight:800;line-height:1;}
+.stress-of{font-size:10px;color:var(--txt2);}
+.stress-badge{font-size:9px;font-weight:700;padding:2px 8px;border-radius:8px;margin-left:auto;}
+.gauge-track{height:6px;border-radius:3px;background:var(--gt);position:relative;overflow:visible;margin-bottom:4px;}
+.gauge-fill{height:100%;border-radius:3px;background:linear-gradient(90deg,var(--green) 0%,var(--amber) 50%,var(--red) 100%);}
+.gauge-needle{position:absolute;top:-3px;width:2px;height:12px;background:var(--txt);border-radius:1px;transform:translateX(-50%);}
+.gauge-labels{display:flex;justify-content:space-between;font-size:8px;color:var(--txt3);}
+/* FX */
+.fx-card{background:var(--bg2);border:0.5px solid var(--border);border-radius:7px;padding:8px 10px;}
+.fx-row{display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:0.5px solid var(--border2);}
+.fx-row:last-child{border-bottom:none;}
+.fx-pair{font-size:10px;font-weight:700;color:var(--txt);}
+.fx-val{font-size:11px;font-weight:700;font-family:"SF Mono","Fira Code",monospace;color:var(--txt);}
+.fx-chg{font-size:9px;font-family:"SF Mono","Fira Code",monospace;}
+/* F&G */
+.fg-row{display:flex;gap:6px;}
+.fg-card{flex:1;background:var(--bg2);border:0.5px solid var(--border);border-radius:7px;padding:7px 8px;text-align:center;}
+.fg-src{font-size:8px;color:var(--txt2);margin-bottom:2px;}
+.fg-num{font-size:20px;font-weight:800;line-height:1;}
+.fg-lbl{font-size:8px;font-weight:700;margin-top:2px;}
+.fg-bar-wrap{margin-top:5px;height:4px;background:var(--gt);border-radius:2px;overflow:hidden;}
+.fg-bar{height:100%;border-radius:2px;}
+.fg-delta{font-size:8px;color:var(--txt2);margin-top:3px;}
+/* 연준 카드 */
+.fed-sb{background:var(--bg2);border:0.5px solid var(--border);border-radius:7px;overflow:hidden;}
+.fed-sb-title{font-size:10px;font-weight:700;color:var(--txt);padding:8px 10px 4px;}
+.fed-sb-btn{display:flex;flex-direction:column;gap:1px;margin:4px 8px 8px;padding:7px 10px;background:var(--rbg);border:0.5px solid var(--rtx);border-radius:5px;cursor:pointer;font-family:inherit;text-align:left;width:calc(100% - 16px);transition:filter .15s;}
+.fed-sb-btn:hover{filter:brightness(.95);}
+.fsb1{font-size:10px;font-weight:700;color:var(--rtx);}
+.fsb2{font-size:8.5px;color:var(--txt2);margin-top:1px;}
+/* 캘린더 */
+.cal-list{display:flex;flex-direction:column;gap:4px;}
+.cal-item{background:var(--bg2);border:0.5px solid var(--border);border-radius:5px;padding:5px 8px;display:flex;gap:7px;}
+.cal-item.urgent{border-color:var(--rtx);}
+.cal-date{font-size:9px;font-weight:700;color:var(--atx);text-align:center;width:30px;flex-shrink:0;}
+.cal-date.r{color:var(--rtx);}
+.cal-d{font-size:8px;color:var(--txt3);}
+.cal-name{font-size:10px;font-weight:700;color:var(--txt);}
+.cal-sub{font-size:9px;color:var(--txt2);margin-top:1px;}
+
+/* ═══════════════════════════════════════════
+   MAIN 컴포넌트
+═══════════════════════════════════════════ */
+/* 파이프 */
+.pipe-title{font-size:10px;font-weight:700;color:var(--txt2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px;}
+.pipe-row{display:flex;align-items:stretch;}
+.pipe-seg{flex:1;border:1px solid var(--border);background:var(--bg2);padding:10px 11px 9px;transition:background .2s,border-color .2s;}
+.pipe-seg:first-child{border-radius:7px 0 0 7px;}
+.pipe-seg:last-child{border-radius:0 7px 7px 0;}
+.pipe-seg.g{background:var(--gbg);border-color:var(--green);}
+.pipe-seg.a{background:var(--abg);border-color:var(--amber);}
+.pipe-seg.r{background:var(--rbg);border-color:var(--red);}
+.pipe-arrow{width:0;flex-shrink:0;display:flex;align-items:center;position:relative;}
+.pipe-arrow::before{content:'';position:absolute;left:-1px;width:0;height:0;border-top:9px solid transparent;border-bottom:9px solid transparent;border-left:9px solid var(--border);z-index:2;}
+.pipe-arrow.g::before{border-left-color:var(--green);}
+.pipe-arrow.a::before{border-left-color:var(--amber);}
+.pipe-arrow.r::before{border-left-color:var(--red);}
+.ps-label{font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;margin-bottom:3px;}
+.ps-label.g{color:var(--gtx);}.ps-label.a{color:var(--atx);}.ps-label.r{color:var(--rtx);}
+.ps-inds{font-size:8px;color:var(--txt2);line-height:1.7;margin-bottom:6px;}
+.ps-bar-wrap{position:relative;height:6px;background:var(--gt);border-radius:3px;margin-bottom:5px;overflow:visible;}
+.ps-bar-fill{position:absolute;top:0;left:0;height:100%;border-radius:3px;transition:width .6s ease;}
+.ps-needle{position:absolute;top:-3px;width:2px;height:12px;background:var(--txt);border-radius:1px;transform:translateX(-50%);transition:left .6s ease;}
+.ps-bottom{display:flex;justify-content:space-between;align-items:baseline;}
+.ps-score{font-size:13px;font-weight:800;}
+.ps-score.g{color:var(--gtx);}.ps-score.a{color:var(--atx);}.ps-score.r{color:var(--rtx);}
+.ps-status{font-size:8px;color:var(--txt2);}
+/* 스트레스 합계 바 */
+.stress-row{margin-top:8px;background:var(--bg2);border:0.5px solid var(--border);border-radius:6px;padding:7px 12px;display:flex;align-items:center;gap:10px;}
+.sr-label{font-size:9px;font-weight:700;color:var(--txt2);text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;}
+.sr-gauge{flex:1;position:relative;}
+.sr-track{height:5px;background:var(--gt);border-radius:3px;overflow:hidden;}
+.sr-fill{height:100%;background:linear-gradient(90deg,var(--green),var(--amber),var(--red));}
+.sr-needle{position:absolute;top:-3px;width:2px;height:11px;background:var(--txt);border-radius:1px;transform:translateX(-50%);}
+.sr-score{font-size:18px;font-weight:800;color:var(--amber);white-space:nowrap;}
+.sr-of{font-size:9px;color:var(--txt2);}
+.sr-badge{font-size:9px;font-weight:700;padding:2px 8px;border-radius:8px;white-space:nowrap;}
+/* KPI 그리드 */
+.kpi-grid{display:grid;gap:7px;}
+.kpi-grid.c4{grid-template-columns:repeat(4,1fr);}
+.kpi-grid.c3{grid-template-columns:repeat(3,1fr);}
+.kpi-grid.c2{grid-template-columns:repeat(2,1fr);}
+.kp-name{font-size:8px;color:var(--txt2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;}
+.kp-val{font-size:17px;font-weight:700;color:var(--txt);line-height:1;}
+.kp-val.g{color:var(--gtx);}.kp-val.a{color:var(--atx);}.kp-val.r{color:var(--rtx);}
+.kp-delta{font-size:9px;color:var(--txt2);margin-top:3px;}
+/* 차트 */
+.chart-block{background:var(--bg2);border:0.5px solid var(--border);border-radius:7px;padding:10px;}
+.chart-hdr{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
+.chart-title{font-size:11px;font-weight:700;color:var(--txt);flex:1;}
+.range-btns{display:flex;gap:3px;}
+.rbtn{font-size:9px;padding:2px 6px;border-radius:3px;cursor:pointer;background:var(--bg3);color:var(--txt2);border:0.5px solid var(--border);font-family:inherit;}
+.rbtn.active{background:var(--bbg);color:var(--btx);border-color:var(--blue);}
+/* 테이블 */
+.tbl-block{background:var(--bg2);border:0.5px solid var(--border);border-radius:7px;overflow:hidden;}
+.tbl-head{padding:6px 10px;background:var(--bg3);border-bottom:0.5px solid var(--border);font-size:10px;font-weight:700;color:var(--txt2);display:flex;justify-content:space-between;}
+table.tbl{width:100%;border-collapse:collapse;font-size:10.5px;}
+table.tbl th{padding:5px 8px;background:var(--bg3);color:var(--txt2);font-size:9px;font-weight:700;text-align:left;border-bottom:0.5px solid var(--border);text-transform:uppercase;letter-spacing:.04em;}
+table.tbl td{padding:5px 8px;border-bottom:0.5px solid var(--border2);color:var(--txt);vertical-align:middle;}
+table.tbl tr:last-child td{border-bottom:none;}
+table.tbl tr:hover td{background:var(--bg3);}
+/* 섹션 타이틀 */
+.mod-title{font-size:11px;font-weight:700;color:var(--txt2);text-transform:uppercase;letter-spacing:.04em;padding:4px 0 8px;border-bottom:1px solid var(--border);margin-bottom:10px;}
+/* WGB 링크 */
+.ext-link{display:block;background:var(--bg2);border:0.5px solid var(--border);border-radius:6px;padding:8px 10px;text-decoration:none;transition:border-color .15s;}
+.ext-link:hover{border-color:var(--btx);}
+.ext-link-t{font-size:10px;font-weight:700;color:var(--btx);}
+.ext-link-s{font-size:9px;color:var(--txt2);margin-top:2px;}
+/* Yield Curve SVG */
+.yc-wrap{background:var(--bg);border-radius:4px;overflow:hidden;padding:8px;}
+
+/* ═══════════════════════════════════════════
+   팝업 (연준 대차대조표)
+═══════════════════════════════════════════ */
+.popup-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:200;align-items:center;justify-content:center;}
+.popup-overlay.show{display:flex;}
+.popup-box{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:20px;width:420px;max-width:94vw;max-height:90vh;overflow-y:auto;}
+.popup-head{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px;}
+.popup-title{font-size:13px;font-weight:700;color:var(--txt);}
+.popup-date{font-size:10px;color:var(--txt2);margin-top:2px;}
+.popup-close{background:none;border:none;color:var(--txt2);font-size:16px;cursor:pointer;padding:0;line-height:1;}
+.popup-section{font-size:9px;font-weight:700;color:var(--txt2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:5px;margin-top:10px;}
+.popup-row{display:flex;justify-content:space-between;padding:3px 0;border-bottom:0.5px solid var(--border2);font-size:10.5px;}
+.popup-row:last-child{border-bottom:none;}
+.popup-key{color:var(--txt2);}
+.popup-v{font-family:"SF Mono","Fira Code",monospace;}
+.popup-v.g{color:var(--gtx);}.popup-v.r{color:var(--rtx);}.popup-v.a{color:var(--atx);}.popup-v.n{color:var(--txt);}
+.popup-ai{background:var(--bg);border-left:3px solid var(--atx);border-radius:4px;padding:9px 11px;font-size:10.5px;color:var(--txt);line-height:1.65;margin-top:12px;}
+.popup-ai strong{color:var(--atx);}
+/* 가중치 슬라이더 팝업 */
+.weight-row{display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:0.5px solid var(--border2);}
+.weight-row:last-child{border-bottom:none;}
+.weight-lbl{font-size:11px;color:var(--txt);flex:1;}
+.weight-val{font-size:11px;font-weight:700;color:var(--atx);width:36px;text-align:right;}
+input[type=range]{flex:1;accent-color:var(--amber);}
+
+/* ═══════════════════════════════════════════
+   바텀 바
+═══════════════════════════════════════════ */
+.btm-bar{background:var(--bg);border-top:1px solid var(--border);padding:5px 16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
+.bi{display:flex;gap:4px;align-items:center;font-size:9px;}
+.bl{color:var(--txt2);}.bv{font-weight:700;}
+.bsep{width:1px;height:10px;background:var(--border);}
+.sdot{width:5px;height:5px;border-radius:50%;display:inline-block;}
+
+/* ═══════════════════════════════════════════
+   모바일 반응형
+═══════════════════════════════════════════ */
+@media(max-width:768px){
+  .sidebar{display:none;}
+  .mobile-top{display:flex !important;}
+  .kpi-grid.c4{grid-template-columns:repeat(2,1fr);}
+  .kpi-grid.c3{grid-template-columns:repeat(2,1fr);}
+  .pipe-row{flex-direction:column;gap:2px;}
+  .pipe-seg:first-child{border-radius:7px 7px 0 0;}
+  .pipe-seg:last-child{border-radius:0 0 7px 7px;}
+  .pipe-arrow{display:none;}
+  .tab-btn{padding:10px 10px;}
+}
+@media(max-width:480px){
+  .kpi-grid.c4,.kpi-grid.c3,.kpi-grid.c2{grid-template-columns:1fr;}
+  .hdr{padding:0 12px;}
+  .main-area{padding:10px;}
+}
+/* 모바일 상단 요약 — 기본 숨김 */
+.mobile-top{display:none;gap:6px;flex-wrap:wrap;padding:8px 0;}
+.mobile-top .fx-mini{background:var(--bg2);border:0.5px solid var(--border);border-radius:6px;padding:5px 8px;font-size:10px;flex:1;min-width:80px;}
+.mt-lbl{font-size:8px;color:var(--txt2);}
+.mt-val{font-weight:700;color:var(--txt);}
+</style>
+</head>
+<body>
+
+<!-- ═══════ HEADER ═══════ -->
+<div class="hdr">
+  <div class="logo" onclick="goHome()">⬡ MACRO<em>LENS</em></div>
+  <div class="hsp"></div>
+  <div class="hdr-time" id="clock"></div>
+  <div class="live">● LIVE</div>
+  <div class="theme-btn" id="themeBtn" onclick="toggleTheme()">🌙</div>
+</div>
+
+<!-- ═══════ TAB NAV ═══════ -->
+<div class="tab-nav">
+  <button class="tab-btn active" onclick="goTab(0,this)">유동성&amp;시장</button>
+  <button class="tab-btn" onclick="goTab(1,this)">실물경제</button>
+  <button class="tab-btn" onclick="goTab(2,this)">글로벌</button>
+  <button class="tab-btn" onclick="goTab(3,this)">암호화폐</button>
+</div>
+
+<!-- ═══════ BODY ═══════ -->
+<div class="body-wrap">
+
+<!-- ─── MAIN ─── -->
+<div class="main-area" id="mainArea">
+
+  <!-- 모바일 상단 요약 (사이드바 대체) -->
+  <div class="mobile-top" id="mobileTop">
+    <div class="fx-mini"><div class="mt-lbl">USD/KRW</div><div class="mt-val" id="m-usdkrw">—</div></div>
+    <div class="fx-mini"><div class="mt-lbl">USD/JPY</div><div class="mt-val" id="m-usdjpy">—</div></div>
+    <div class="fx-mini"><div class="mt-lbl">CNN F&G</div><div class="mt-val" id="m-cnn">—</div></div>
+    <div class="fx-mini"><div class="mt-lbl">Crypto F&G</div><div class="mt-val" id="m-crypto">—</div></div>
+    <div class="fx-mini"><div class="mt-lbl">VIX</div><div class="mt-val" id="m-vix">—</div></div>
+  </div>
+
+  <!-- ══ TAB 0: 유동성&시장 ══ -->
+  <div id="t0">
+
+    <!-- 파이프 압력 -->
+    <div class="pipe-title">금융 배관 — 구간별 압력 현황</div>
+    <div class="pipe-row">
+      <div class="pipe-seg" id="pipe0">
+        <div class="ps-label" id="plbl0">중앙은행 유동성</div>
+        <div class="ps-inds">준비금 속도<br>TGA 잔고</div>
+        <div class="ps-bar-wrap"><div class="ps-bar-fill" id="pbar0" style="width:0%"></div><div class="ps-needle" id="pndl0" style="left:0%"></div></div>
+        <div class="ps-bottom"><span class="ps-score" id="pscr0">—</span><span class="ps-status" id="psts0">로딩중</span></div>
+      </div>
+      <div class="pipe-arrow" id="parr0"></div>
+      <div class="pipe-seg" id="pipe1">
+        <div class="ps-label" id="plbl1">단기자금시장</div>
+        <div class="ps-inds">SOFR–IORB<br>MMF 플로우<br>PD 포지션</div>
+        <div class="ps-bar-wrap"><div class="ps-bar-fill" id="pbar1" style="width:0%"></div><div class="ps-needle" id="pndl1" style="left:0%"></div></div>
+        <div class="ps-bottom"><span class="ps-score" id="pscr1">—</span><span class="ps-status" id="psts1">로딩중</span></div>
+      </div>
+      <div class="pipe-arrow" id="parr1"></div>
+      <div class="pipe-seg" id="pipe2">
+        <div class="ps-label" id="plbl2">글로벌 달러·환율</div>
+        <div class="ps-inds">CC 베이시스<br>달러 퀄리티<br>무역금융</div>
+        <div class="ps-bar-wrap"><div class="ps-bar-fill" id="pbar2" style="width:0%"></div><div class="ps-needle" id="pndl2" style="left:0%"></div></div>
+        <div class="ps-bottom"><span class="ps-score" id="pscr2">—</span><span class="ps-status" id="psts2">로딩중</span></div>
+      </div>
+      <div class="pipe-arrow" id="parr2"></div>
+      <div class="pipe-seg" id="pipe3">
+        <div class="ps-label" id="plbl3">신용·실물 리스크</div>
+        <div class="ps-inds">SLOOS<br>CRE 위험<br>이자보상<br>국가부도 갭</div>
+        <div class="ps-bar-wrap"><div class="ps-bar-fill" id="pbar3" style="width:0%"></div><div class="ps-needle" id="pndl3" style="left:0%"></div></div>
+        <div class="ps-bottom"><span class="ps-score" id="pscr3">—</span><span class="ps-status" id="psts3">로딩중</span></div>
+      </div>
+    </div>
+    <!-- 종합 스트레스 -->
+    <div class="stress-row">
+      <span class="sr-label">시스템 스트레스 지수</span>
+      <div class="sr-gauge">
+        <div class="sr-track"><div class="sr-fill"></div></div>
+        <div class="sr-needle" id="srNeedle" style="left:0%"></div>
+      </div>
+      <span class="sr-score" id="srScore">—</span>
+      <span class="sr-of">/10</span>
+      <span class="sr-badge" id="srBadge">로딩중</span>
+      <button onclick="openPopup('weight')" style="background:none;border:0.5px solid var(--border);border-radius:4px;padding:2px 7px;font-size:9px;color:var(--txt2);cursor:pointer;font-family:inherit;margin-left:6px;">가중치 조정</button>
+    </div>
+
+    <!-- 금융배관 KPI -->
+    <div style="margin-top:4px;">
+      <div class="kpi-grid c4">
+        <div class="card" id="kA1"><div class="kp-name">은행 준비금</div><div class="kp-val loading" id="vA1">로딩중</div><div class="kp-delta" id="dA1">—</div></div>
+        <div class="card" id="kA2"><div class="kp-name">SOFR</div><div class="kp-val loading" id="vA2">로딩중</div><div class="kp-delta" id="dA2">—</div></div>
+        <div class="card" id="kA3"><div class="kp-name">IORB</div><div class="kp-val loading" id="vA3">로딩중</div><div class="kp-delta" id="dA3">—</div></div>
+        <div class="card" id="kA4"><div class="kp-name">SOFR–IORB 스프레드</div><div class="kp-val loading" id="vA4">로딩중</div><div class="kp-delta" id="dA4">—</div></div>
+        <div class="card" id="kA5"><div class="kp-name">역레포 (ON RRP)</div><div class="kp-val loading" id="vA5">로딩중</div><div class="kp-delta" id="dA5">—</div></div>
+        <div class="card" id="kA6"><div class="kp-name">준비금+역레포 버퍼</div><div class="kp-val loading" id="vA6">로딩중</div><div class="kp-delta" id="dA6">—</div></div>
+        <div class="card" id="kA7"><div class="kp-name">TGA 잔고</div><div class="kp-val loading" id="vA7">로딩중</div><div class="kp-delta" id="dA7">—</div></div>
+        <div class="card" id="kA8"><div class="kp-name">HY OAS</div><div class="kp-val loading" id="vA8">로딩중</div><div class="kp-delta" id="dA8">—</div></div>
+        <div class="card" id="kA9"><div class="kp-name">광의 달러지수</div><div class="kp-val loading" id="vA9">로딩중</div><div class="kp-delta" id="dA9">—</div></div>
+        <div class="card" id="kA10"><div class="kp-name">SLOOS 대출 기준</div><div class="kp-val loading" id="vA10">로딩중</div><div class="kp-delta" id="dA10">—</div></div>
+        <div class="card" id="kA11"><div class="kp-name">MMF 총자산</div><div class="kp-val loading" id="vA11">로딩중</div><div class="kp-delta" id="dA11">—</div></div>
+        <div class="card" id="kA12"><div class="kp-name">PD 순포지션</div><div class="kp-val loading" id="vA12">—</div><div class="kp-delta" id="dA12">NY Fed 주간</div></div>
+      </div>
+    </div>
+
+    <!-- 배관 스트레스 판정 테이블 (Module A 바로 하위) -->
+    <div class="tbl-block" style="margin-top:8px;">
+      <div class="tbl-head"><span>● 배관 지표 스트레스 판정</span><span style="font-size:9px;">현재값 / 경고 / 경색 / 신호</span></div>
+      <table class="tbl">
+        <thead><tr><th>지표</th><th>현재값</th><th>경고기준</th><th>경색기준</th><th>신호</th></tr></thead>
+        <tbody id="plumbingTbl">
+          <tr><td colspan="5" style="text-align:center;color:var(--txt3);padding:12px;">데이터 로딩중...</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <!-- 금리 KPI -->
+    <div style="margin-top:12px;">
+      <div class="kpi-grid c4">
+        <div class="card" id="kB1"><div class="kp-name">2년 국채</div><div class="kp-val loading" id="vB1">로딩중</div><div class="kp-delta" id="dB1">—</div></div>
+        <div class="card" id="kB2"><div class="kp-name">5년 국채</div><div class="kp-val loading" id="vB2">로딩중</div><div class="kp-delta" id="dB2">—</div></div>
+        <div class="card" id="kB3"><div class="kp-name">10년 국채</div><div class="kp-val loading" id="vB3">로딩중</div><div class="kp-delta" id="dB3">—</div></div>
+        <div class="card" id="kB4"><div class="kp-name">30년 국채</div><div class="kp-val loading" id="vB4">로딩중</div><div class="kp-delta" id="dB4">—</div></div>
+        <div class="card" id="kB5"><div class="kp-name">2s10s 스프레드</div><div class="kp-val loading" id="vB5">로딩중</div><div class="kp-delta" id="dB5">—</div></div>
+        <div class="card" id="kB6"><div class="kp-name">3m10y 스프레드</div><div class="kp-val loading" id="vB6">로딩중</div><div class="kp-delta" id="dB6">—</div></div>
+        <div class="card" id="kB7"><div class="kp-name">TIPS 10Y 실질금리</div><div class="kp-val loading" id="vB7">로딩중</div><div class="kp-delta" id="dB7">—</div></div>
+        <div class="card" id="kB8"><div class="kp-name">기대 인플레이션 10Y</div><div class="kp-val loading" id="vB8">로딩중</div><div class="kp-delta" id="dB8">—</div></div>
+        <div class="card" id="kB9"><div class="kp-name">실효 Fed Funds Rate</div><div class="kp-val loading" id="vB9">로딩중</div><div class="kp-delta" id="dB9">—</div></div>
+      </div>
+      <!-- 수익률 곡선 -->
+      <div class="chart-block" style="margin-top:8px;">
+        <div class="chart-hdr"><span class="chart-title">수익률 곡선 (Yield Curve)</span></div>
+        <div class="yc-wrap" style="height:120px;">
+          <svg id="ycSvg" width="100%" height="100%" viewBox="0 0 500 100" preserveAspectRatio="none">
+            <text x="50%" y="50%" text-anchor="middle" dominant-baseline="middle" font-size="10" fill="var(--txt3)">데이터 로딩중...</text>
+          </svg>
+        </div>
+      </div>
+    </div>
+
+    <!-- 물가·원자재 KPI -->
+    <div style="margin-top:12px;">
+      <div class="kpi-grid c4">
+        <div class="card" id="kC1"><div class="kp-name">CPI YoY</div><div class="kp-val loading" id="vC1">로딩중</div><div class="kp-delta" id="dC1">—</div></div>
+        <div class="card" id="kC2"><div class="kp-name">Core CPI YoY</div><div class="kp-val loading" id="vC2">로딩중</div><div class="kp-delta" id="dC2">—</div></div>
+        <div class="card" id="kC3"><div class="kp-name">PPI YoY</div><div class="kp-val loading" id="vC3">로딩중</div><div class="kp-delta" id="dC3">—</div></div>
+        <div class="card" id="kC4"><div class="kp-name">PCE YoY</div><div class="kp-val loading" id="vC4">로딩중</div><div class="kp-delta" id="dC4">—</div></div>
+        <div class="card" id="kC5"><div class="kp-name">미시간 인플레 기대</div><div class="kp-val loading" id="vC5">로딩중</div><div class="kp-delta" id="dC5">—</div></div>
+        <div class="card" id="kC6"><div class="kp-name">WTI 유가</div><div class="kp-val loading" id="vC6">로딩중</div><div class="kp-delta" id="dC6">—</div></div>
+        <div class="card" id="kC7"><div class="kp-name">Brent 유가</div><div class="kp-val loading" id="vC7">로딩중</div><div class="kp-delta" id="dC7">—</div></div>
+        <div class="card" id="kC8"><div class="kp-name">천연가스 (Henry Hub)</div><div class="kp-val loading" id="vC8">로딩중</div><div class="kp-delta" id="dC8">—</div></div>
+        <div class="card" id="kC9"><div class="kp-name">우라늄 (SRUUF 프록시)</div><div class="kp-val loading" id="vC9">Yahoo</div><div class="kp-delta" id="dC9">—</div></div>
+        <div class="card" id="kC10"><div class="kp-name">구리</div><div class="kp-val loading" id="vC10">로딩중</div><div class="kp-delta" id="dC10">—</div></div>
+        <div class="card" id="kC11"><div class="kp-name">알루미늄</div><div class="kp-val loading" id="vC11">로딩중</div><div class="kp-delta" id="dC11">—</div></div>
+        <div class="card" id="kC12"><div class="kp-name">밀 (Wheat)</div><div class="kp-val loading" id="vC12">로딩중</div><div class="kp-delta" id="dC12">—</div></div>
+        <div class="card" id="kC13"><div class="kp-name">중국 PMI (교차검증)</div><div class="kp-val loading" id="vC13">로딩중</div><div class="kp-delta" id="dC13">—</div></div>
+      </div>
+    </div>
+
+    <!-- 배관 스트레스 판정 테이블 -->
+    <div class="tbl-block" style="margin-top:4px;">
+      <div class="tbl-head"><span>● 배관 지표 스트레스 판정</span><span style="font-size:9px;">현재값 / 경고 / 경색 / 신호</span></div>
+      <table class="tbl">
+        <thead><tr><th>지표</th><th>현재값</th><th>경고기준</th><th>경색기준</th><th>신호</th></tr></thead>
+        <tbody id="plumbingTbl">
+          <tr><td colspan="5" style="text-align:center;color:var(--txt3);padding:12px;">데이터 로딩중...</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+  </div><!-- /t0 -->
+
+  <!-- ══ TAB 1: 실물경제 ══ -->
+  <div id="t1" style="display:none;">
+    <!-- 고용·경기 KPI -->
+    <div style="margin-bottom:12px;">
+      <div class="kpi-grid c4">
+      <div class="card" id="kD1"><div class="kp-name">실업률 (U-3)</div><div class="kp-val loading" id="vD1">로딩중</div><div class="kp-delta" id="dD1">—</div></div>
+      <div class="card" id="kD2"><div class="kp-name">비농업 신규고용 (NFP)</div><div class="kp-val loading" id="vD2">로딩중</div><div class="kp-delta" id="dD2">—</div></div>
+      <div class="card" id="kD3"><div class="kp-name">신규 실업수당</div><div class="kp-val loading" id="vD3">로딩중</div><div class="kp-delta" id="dD3">—</div></div>
+      <div class="card" id="kD4"><div class="kp-name">샴 룰 지수</div><div class="kp-val loading" id="vD4">로딩중</div><div class="kp-delta" id="dD4">0.5 돌파 시 침체</div></div>
+      <div class="card" id="kD5"><div class="kp-name">ISM 제조업 PMI</div><div class="kp-val loading" id="vD5">로딩중</div><div class="kp-delta" id="dD5">—</div></div>
+      <div class="card" id="kD6"><div class="kp-name">ISM 서비스업 PMI</div><div class="kp-val loading" id="vD6">로딩중</div><div class="kp-delta" id="dD6">—</div></div>
+      <div class="card" id="kD7"><div class="kp-name">경제활동참가율</div><div class="kp-val loading" id="vD7">로딩중</div><div class="kp-delta" id="dD7">—</div></div>
+      <div class="card" id="kD8"><div class="kp-name">경기선행지수 (LEI)</div><div class="kp-val loading" id="vD8">로딩중</div><div class="kp-delta" id="dD8">—</div></div>
+    </div>
+    <!-- 소비·신뢰 KPI -->
+    <div style="margin-top:12px;">
+      <div class="kpi-grid c4">
+      <div class="card" id="kE1"><div class="kp-name">미시간 소비자신뢰</div><div class="kp-val loading" id="vE1">로딩중</div><div class="kp-delta" id="dE1">—</div></div>
+      <div class="card" id="kE2"><div class="kp-name">CB 소비자신뢰</div><div class="kp-val loading" id="vE2">로딩중</div><div class="kp-delta" id="dE2">—</div></div>
+      <div class="card" id="kE3"><div class="kp-name">소매판매 MoM</div><div class="kp-val loading" id="vE3">로딩중</div><div class="kp-delta" id="dE3">—</div></div>
+      <div class="card" id="kE4"><div class="kp-name">개인저축률</div><div class="kp-val loading" id="vE4">로딩중</div><div class="kp-delta" id="dE4">—</div></div>
+      <div class="card" id="kE5"><div class="kp-name">신용카드 연체율</div><div class="kp-val loading" id="vE5">로딩중</div><div class="kp-delta" id="dE5">—</div></div>
+    </div>
+    <!-- 고용 스트레스 판정 테이블 -->
+    <div class="tbl-block" style="margin-top:12px;">
+      <div class="tbl-head"><span>● 실물경제 스트레스 판정</span></div>
+      <table class="tbl">
+        <thead><tr><th>지표</th><th>현재값</th><th>경고기준</th><th>경색기준</th><th>신호</th></tr></thead>
+        <tbody id="realEconTbl">
+          <tr><td colspan="5" style="text-align:center;color:var(--txt3);padding:12px;">데이터 로딩중...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div><!-- /t1 -->
+
+  <!-- ══ TAB 2: 글로벌 ══ -->
+  <div id="t2" style="display:none;">
+    <!-- 글로벌 KPI -->
+    <div class="kpi-grid c4">
+        <div class="card" id="kF1"><div class="kp-name">DXY (ICE)</div><div class="kp-val loading" id="vF1">Yahoo</div><div class="kp-delta" id="dF1">실시간</div></div>
+        <div class="card" id="kF2"><div class="kp-name">광의 달러지수 (Broad)</div><div class="kp-val loading" id="vF2">로딩중</div><div class="kp-delta" id="dF2">—</div></div>
+        <div class="card" id="kF3"><div class="kp-name">금 (Gold)</div><div class="kp-val loading" id="vF3">로딩중</div><div class="kp-delta" id="dF3">—</div></div>
+        <div class="card" id="kF4"><div class="kp-name">은 (Silver)</div><div class="kp-val loading" id="vF4">로딩중</div><div class="kp-delta" id="dF4">—</div></div>
+        <div class="card" id="kF5"><div class="kp-name">금은 비율 (GSR)</div><div class="kp-val loading" id="vF5">로딩중</div><div class="kp-delta" id="dF5">80↑ = 은 저평가</div></div>
+        <div class="card" id="kF6"><div class="kp-name">VIX</div><div class="kp-val loading" id="vF6">로딩중</div><div class="kp-delta" id="dF6">—</div></div>
+        <div class="card" id="kF7"><div class="kp-name">S&amp;P 500</div><div class="kp-val loading" id="vF7">로딩중</div><div class="kp-delta" id="dF7">—</div></div>
+        <div class="card" id="kF8"><div class="kp-name">MSCI EM (EEM)</div><div class="kp-val loading" id="vF8">Yahoo</div><div class="kp-delta" id="dF8">—</div></div>
+        <div class="card" id="kF9"><div class="kp-name">한미 10Y 스프레드</div><div class="kp-val loading" id="vF9">로딩중</div><div class="kp-delta" id="dF9">CDS 프록시</div></div>
+        <div class="card" style="cursor:pointer;" onclick="window.open('https://www.worldgovernmentbonds.com/sovereign-cds/','_blank')">
+          <div class="kp-name">전세계 Sovereign CDS 5Y</div>
+          <div class="kp-val" style="font-size:13px;color:var(--btx);">바로가기 →</div>
+          <div class="kp-delta">worldgovernmentbonds.com</div>
+        </div>
+    </div>
+  </div><!-- /t2 -->
+
+  <!-- ══ TAB 3: 암호화폐 ══ -->
+  <div id="t3" style="display:none;">
+    <!-- 암호화폐 KPI -->
+    <div class="kpi-grid c4">
+      <div class="card" id="kG1"><div class="kp-name">비트코인 (BTC)</div><div class="kp-val loading" id="vG1">로딩중</div><div class="kp-delta" id="dG1">—</div></div>
+      <div class="card" id="kG2"><div class="kp-name">이더리움 (ETH)</div><div class="kp-val loading" id="vG2">로딩중</div><div class="kp-delta" id="dG2">—</div></div>
+      <div class="card" id="kG3"><div class="kp-name">BTC 도미넌스</div><div class="kp-val loading" id="vG3">로딩중</div><div class="kp-delta" id="dG3">—</div></div>
+      <div class="card" id="kG4"><div class="kp-name">Crypto 공포탐욕</div><div class="kp-val loading" id="vG4">로딩중</div><div class="kp-delta" id="dG4">—</div></div>
+      <div class="card" id="kG5"><div class="kp-name">스테이블코인 시총</div><div class="kp-val loading" id="vG5">로딩중</div><div class="kp-delta" id="dG5">USDT+USDC</div></div>
+      <div class="card" id="kG6"><div class="kp-name">BTC↔S&amp;P500 상관계수</div><div class="kp-val loading" id="vG6">계산중</div><div class="kp-delta" id="dG6">30일 롤링</div></div>
+    </div>
+    <div class="chart-block" style="margin-top:10px;">
+      <div class="chart-hdr"><span class="chart-title">BTC 가격 추이 (30일)</span></div>
+      <div style="height:120px;background:var(--bg);border-radius:4px;display:flex;align-items:center;justify-content:center;">
+        <span style="color:var(--txt3);font-size:10px;" id="btcChartMsg">데이터 로딩중...</span>
+      </div>
+    </div>
+  </div><!-- /t3 -->
+
+</div><!-- /main-area -->
+
+<!-- ─── SIDEBAR ─── -->
+<div class="sidebar">
+
+  <div class="sec-ttl">시스템 스트레스 지수</div>
+  <div class="stress-card">
+    <div class="stress-top">
+      <span class="stress-score" id="sbScore" style="color:var(--gtx)">—</span>
+      <span class="stress-of">/10</span>
+      <span class="stress-badge" id="sbBadge" style="background:var(--gbg);color:var(--gtx);">로딩중</span>
+    </div>
+    <div class="gauge-track">
+      <div class="gauge-fill"></div>
+      <div class="gauge-needle" id="sbNeedle" style="left:0%"></div>
+    </div>
+    <div class="gauge-labels"><span>확장</span><span>마찰</span><span>경색</span></div>
+  </div>
+
+  <div class="sep"></div>
+  <div class="sec-ttl">환율 (FX)</div>
+  <div class="fx-card">
+    <div class="fx-row"><span class="fx-pair">USD/KRW</span><div style="text-align:right"><div class="fx-val" id="fxUSDKRW">—</div><div class="fx-chg" id="fxUSDKRWd">—</div></div></div>
+    <div class="fx-row"><span class="fx-pair">JPY/KRW</span><div style="text-align:right"><div class="fx-val" id="fxJPYKRW">—</div><div class="fx-chg" id="fxJPYKRWd">—</div></div></div>
+    <div class="fx-row"><span class="fx-pair">USD/JPY</span><div style="text-align:right"><div class="fx-val" id="fxUSDJPY">—</div><div class="fx-chg" id="fxUSDJPYd">—</div></div></div>
+  </div>
+
+  <div class="sep"></div>
+  <div class="sec-ttl">공포 &amp; 탐욕</div>
+  <div class="fg-row">
+    <div class="fg-card">
+      <div class="fg-src">CNN F&amp;G</div>
+      <div class="fg-num" id="fgCNN">—</div>
+      <div class="fg-lbl" id="fgCNNlbl">—</div>
+      <div class="fg-bar-wrap"><div class="fg-bar" id="fgCNNbar" style="width:50%;background:linear-gradient(90deg,var(--green),var(--amber),var(--red));"></div></div>
+      <div class="fg-delta" id="fgCNNd">—</div>
+    </div>
+    <div class="fg-card">
+      <div class="fg-src">Crypto F&amp;G</div>
+      <div class="fg-num" id="fgCrypto">—</div>
+      <div class="fg-lbl" id="fgCryptolbl">—</div>
+      <div class="fg-bar-wrap"><div class="fg-bar" id="fgCryptobar" style="width:50%;background:linear-gradient(90deg,var(--green),var(--amber),var(--red));"></div></div>
+      <div class="fg-delta" id="fgCryptod">—</div>
+    </div>
+  </div>
+
+  <div class="sep"></div>
+  <div class="sec-ttl">연준 대차대조표</div>
+  <div class="fed-sb">
+    <div class="fed-sb-title">연준 대차대조표 분석</div>
+    <button class="fed-sb-btn" onclick="openPopup('fed')">
+      <div class="fsb1">분석 확인하기</div>
+      <div class="fsb2" id="fedSbDate">(last updated —)</div>
+    </button>
+  </div>
+
+  <div class="sep"></div>
+  <div class="sec-ttl">이벤트 캘린더</div>
+  <div class="cal-list" id="calList">
+    <div class="cal-item urgent">
+      <div><div class="cal-date r">03.26</div><div class="cal-d r">D-2</div></div>
+      <div><div class="cal-name">PCE 물가 (2월)</div><div class="cal-sub">전월 2.5% → 예상 2.6%</div></div>
+    </div>
+    <div class="cal-item">
+      <div><div class="cal-date">04.04</div><div class="cal-d">D-11</div></div>
+      <div><div class="cal-name">비농업 고용보고서</div><div class="cal-sub">3월 고용 / 실업률</div></div>
+    </div>
+    <div class="cal-item">
+      <div><div class="cal-date">04.10</div><div class="cal-d">D-17</div></div>
+      <div><div class="cal-name">CPI (3월)</div><div class="cal-sub">헤드라인 + 코어</div></div>
+    </div>
+    <div class="cal-item">
+      <div><div class="cal-date">04.29</div><div class="cal-d">D-36</div></div>
+      <div><div class="cal-name">FOMC 결정</div><div class="cal-sub">동결 전망 98%</div></div>
+    </div>
+    <div class="cal-item" style="opacity:.5;">
+      <div><div class="cal-date">매주</div><div class="cal-d">목</div></div>
+      <div><div class="cal-name">연준 H.4.1</div><div class="cal-sub">자동 업데이트</div></div>
+    </div>
+  </div>
+
+</div><!-- /sidebar -->
+</div><!-- /body-wrap -->
+
+<!-- ═══════ BOTTOM BAR ═══════ -->
+<div class="btm-bar">
+  <div class="bi"><span class="sdot" id="dotFRED" style="background:var(--txt3)"></span><span class="bl">FRED</span><span class="bv" id="stFRED" style="color:var(--txt2)">대기중</span></div>
+  <div class="bsep"></div>
+  <div class="bi"><span class="sdot" id="dotCG" style="background:var(--txt3)"></span><span class="bl">CoinGecko</span><span class="bv" id="stCG" style="color:var(--txt2)">대기중</span></div>
+  <div class="bsep"></div>
+  <div class="bi"><span class="sdot" id="dotH41" style="background:var(--txt3)"></span><span class="bl">H.4.1</span><span class="bv" id="stH41" style="color:var(--txt2)">대기중</span></div>
+  <div class="bsep"></div>
+  <div class="bi" style="margin-left:auto;"><span class="bl">마지막 갱신</span><span class="bv" id="lastUpdate" style="color:var(--txt2)">—</span></div>
+</div>
+
+<!-- ═══════ 팝업: 연준 대차대조표 ═══════ -->
+<div class="popup-overlay" id="popup-fed" onclick="closePopup('fed',event)">
+  <div class="popup-box" onclick="event.stopPropagation()">
+    <div class="popup-head">
+      <div><div class="popup-title">연준 대차대조표 분석</div><div class="popup-date" id="h41date">H.4.1 · 로딩중...</div></div>
+      <button class="popup-close" onclick="closePopup('fed')">✕</button>
+    </div>
+    <div id="h41content" style="color:var(--txt3);font-size:10px;">데이터 로딩중...</div>
+  </div>
+</div>
+
+<!-- ═══════ 팝업: 가중치 조정 ═══════ -->
+<div class="popup-overlay" id="popup-weight" onclick="closePopup('weight',event)">
+  <div class="popup-box" onclick="event.stopPropagation()">
+    <div class="popup-head">
+      <div><div class="popup-title">스트레스 점수 가중치 조정</div><div class="popup-date">각 사용자 브라우저에만 저장됩니다</div></div>
+      <button class="popup-close" onclick="closePopup('weight')">✕</button>
+    </div>
+    <div id="weightRows"></div>
+    <div style="display:flex;gap:8px;margin-top:14px;">
+      <button onclick="saveWeights()" style="flex:1;padding:8px;background:var(--amber);color:#fff;border:none;border-radius:5px;font-family:inherit;font-size:11px;font-weight:700;cursor:pointer;">저장</button>
+      <button onclick="resetWeights()" style="padding:8px 14px;background:var(--bg3);color:var(--txt2);border:none;border-radius:5px;font-family:inherit;font-size:11px;cursor:pointer;">초기화</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════
+// 설정
+// ═══════════════════════════════════════════
+const WORKER = 'https://macrolens-worker.macrolens.workers.dev';
+const CACHE_TTL = 6 * 60 * 60 * 1000; // 6시간
+
+// 가중치 기본값
+const DEFAULT_WEIGHTS = {
+  plumbing: 40, rates: 25, inflation: 10,
+  employment: 15, consumer: 5, global: 5
+};
+
+let weights = loadWeights();
+let dark = localStorage.getItem('theme') === 'dark';
+if (dark) document.documentElement.classList.add('dark');
+
+// ═══════════════════════════════════════════
+// FRED 시리즈 정의
+// ═══════════════════════════════════════════
+const FRED_SERIES = {
+  // A모듈
+  TOTRESNS:'A1', SOFR:'A2', IORB:'A3', RRPONTSYD:'A5',
+  WTREGEN:'A7', BAMLH0A0HYM2:'A8', DTWEXBGS:'A9',
+  DRTSCILM:'A10', WRMFNS:'A11',
+  // B모듈
+  DGS2:'B1', DGS5:'B2', DGS10:'B3', DGS30:'B4',
+  T10Y2Y:'B5', T10Y3M:'B6', DFII10:'B7', T10YIE:'B8', EFFR:'B9',
+  // C모듈
+  CPIAUCSL:'C1', CPILFESL:'C2', PPIACO:'C3', PCEPI:'C4',
+  MICH:'C5', DCOILWTICO:'C6', DCOILBRENTEU:'C7', DHHNGSP:'C8',
+  PCOPPUSDM:'C10', PALUMUSDM:'C11', PWHEAMTUSDM:'C12',
+  // D모듈
+  UNRATE:'D1', PAYEMS:'D2', ICSA:'D3', SAHMREALTIME:'D4',
+  CIVPART:'D7', USSLIND:'D8',
+  // E모듈
+  UMCSENT:'E1', CSCICP03USM665S:'E2', RSAFS:'E3',
+  PSAVERT:'E4', DRCCLACBS:'E5',
+  // F모듈
+  SP500:'F7',
+};
+
+// 임계값 정의 (stressLevel 계산용)
+const THRESHOLDS = {
+  BAMLH0A0HYM2: { warn:400, crisis:600, dir:'up' },
+  T10Y2Y:        { warn:-50, crisis:-100, dir:'down' }, // bp
+  T10Y3M:        { warn:0,   crisis:-50,  dir:'down' },
+  SAHMREALTIME:  { warn:0.3, crisis:0.5,  dir:'up' },
+  VIXCLS:        { warn:20,  crisis:30,   dir:'up' },
+  UNRATE:        { warn:4.5, crisis:5.5,  dir:'up' },
+  CPIAUCSL:      { warn:2.5, crisis:4.0,  dir:'up' },
+};
+
+let latestData = {}; // 전체 최신 데이터 캐시
+
+// ═══════════════════════════════════════════
+// 클록
+// ═══════════════════════════════════════════
+function tick() {
+  const n = new Date(), p = v => String(v).padStart(2,'0');
+  document.getElementById('clock').textContent =
+    `${n.getFullYear()}.${p(n.getMonth()+1)}.${p(n.getDate())} · ${p(n.getHours())}:${p(n.getMinutes())} KST`;
+}
+tick(); setInterval(tick, 1000);
+
+// ═══════════════════════════════════════════
+// 테마
+// ═══════════════════════════════════════════
+function toggleTheme() {
+  dark = !dark;
+  document.documentElement.classList.toggle('dark', dark);
+  document.getElementById('themeBtn').textContent = dark ? '☀️' : '🌙';
+  localStorage.setItem('theme', dark ? 'dark' : 'light');
+}
+document.getElementById('themeBtn').textContent = dark ? '☀️' : '🌙';
+
+// ═══════════════════════════════════════════
+// 탭 전환
+// ═══════════════════════════════════════════
+function goTab(n, btn) {
+  [0,1,2,3].forEach(i => {
+    const el = document.getElementById('t'+i);
+    if (el) el.style.display = 'none';
+  });
+  const t = document.getElementById('t'+n);
+  if (t) t.style.display = 'block';
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+}
+function goHome() { goTab(0, document.querySelectorAll('.tab-btn')[0]); }
+
+// ═══════════════════════════════════════════
+// 팝업
+// ═══════════════════════════════════════════
+function openPopup(id) { document.getElementById('popup-'+id).classList.add('show'); }
+function closePopup(id, e) {
+  if (!e || e.target === document.getElementById('popup-'+id))
+    document.getElementById('popup-'+id).classList.remove('show');
+}
+
+// ═══════════════════════════════════════════
+// 캐시 유틸
+// ═══════════════════════════════════════════
+function getCached(key) {
+  try {
+    const raw = localStorage.getItem('ml_'+key);
+    if (!raw) return null;
+    const {ts, data} = JSON.parse(raw);
+    if (Date.now() - ts > CACHE_TTL) return null;
+    return data;
+  } catch { return null; }
+}
+function setCache(key, data) {
+  try { localStorage.setItem('ml_'+key, JSON.stringify({ts:Date.now(), data})); } catch {}
+}
+
+// ═══════════════════════════════════════════
+// FRED 데이터 가져오기
+// ═══════════════════════════════════════════
+async function fredFetch(seriesId, limit=2) {
+  const cKey = `fred_${seriesId}`;
+  const cached = getCached(cKey);
+  if (cached) return cached;
+  try {
+    const resp = await fetch(`${WORKER}/fred?series_id=${seriesId}&limit=${limit}&sort_order=desc`);
+    const json = await resp.json();
+    const obs = (json.observations||[]).filter(o => o.value !== '.');
+    const result = { id:seriesId, obs };
+    setCache(cKey, result);
+    return result;
+  } catch(e) { return { id:seriesId, obs:[], error:e.message }; }
+}
+
+// 최신값 + 직전값 반환
+function getLatest(obs) {
+  const v  = obs[0] ? parseFloat(obs[0].value) : null;
+  const p  = obs[1] ? parseFloat(obs[1].value) : null;
+  const d  = obs[0]?.date || null;
+  const delta = (v!==null && p!==null) ? v-p : null;
+  return {v, p, d, delta};
+}
+
+// 포맷
+function fmt(v, unit='', digits=2) {
+  if (v===null||isNaN(v)) return '—';
+  if (unit==='T') return `$${(v/1e6).toFixed(2)}T`;
+  if (unit==='B') return `$${(v/1e3).toFixed(0)}B`;
+  if (unit==='%') return `${v.toFixed(digits)}%`;
+  if (unit==='bp') return `${(v*100).toFixed(0)}bp`;
+  if (unit==='$') return `$${v.toFixed(digits)}`;
+  return v.toFixed(digits);
+}
+function deltaStr(d, unit='') {
+  if (d===null||isNaN(d)) return '';
+  const sign = d>=0 ? '+':'-';
+  const abs = Math.abs(d);
+  const s = unit==='%' ? `${sign}${abs.toFixed(2)}%` :
+            unit==='T' ? `${sign}$${(abs/1e6).toFixed(3)}T` :
+            `${sign}${abs.toFixed(2)}`;
+  return s;
+}
+function setKpi(id, val, delta, cls='') {
+  const ve = document.getElementById('v'+id);
+  const de = document.getElementById('d'+id);
+  const ke = document.getElementById('k'+id);
+  if (ve) { ve.textContent = val; ve.className = 'kp-val'+(cls?' '+cls:''); }
+  if (de) { de.textContent = delta; }
+  if (ke && cls) {
+    ke.classList.remove('g','a','r');
+    if (cls==='g') ke.classList.add('g');
+    else if (cls==='a') ke.classList.add('a');
+    else if (cls==='r') ke.classList.add('r');
+  }
+}
+
+// 신호 판정
+function signal(val, threshold) {
+  if (!threshold || val===null) return {cls:'', pill:'—', score:0};
+  const {warn, crisis, dir} = threshold;
+  let stress = 0;
+  if (dir==='up') {
+    if (val >= crisis) { stress=10; return {cls:'r', pill:'🔴 경색', score:10}; }
+    if (val >= warn)   { stress=5;  return {cls:'a', pill:'🟡 주의', score:5}; }
+  } else {
+    if (val <= crisis) { stress=10; return {cls:'r', pill:'🔴 경색', score:10}; }
+    if (val <= warn)   { stress=5;  return {cls:'a', pill:'🟡 주의', score:5}; }
+  }
+  return {cls:'g', pill:'🟢 정상', score:0};
+}
+
+// ═══════════════════════════════════════════
+// 스트레스 점수 계산 & 파이프 업데이트
+// ═══════════════════════════════════════════
+function computeStress() {
+  // 4개 파이프 구간별 점수
+  const pipes = [
+    // 중앙은행 유동성: reserves + TGA
+    { scores:[latestData.reserveScore||0, latestData.tgaScore||0], weight:weights.plumbing*0.35 },
+    // 단기자금: SOFR-IORB + MMF + PD
+    { scores:[latestData.sofrScore||0, latestData.mmfScore||0], weight:weights.plumbing*0.35 },
+    // 글로벌 달러: Broad DXY + CC Basis
+    { scores:[latestData.dxyScore||0], weight:weights.plumbing*0.15 },
+    // 신용·실물: HY OAS + SLOOS
+    { scores:[latestData.hyScore||0, latestData.sloosScore||0], weight:weights.plumbing*0.15 },
+  ];
+
+  const pipeScores = pipes.map(p => {
+    const avg = p.scores.reduce((a,b)=>a+b,0) / Math.max(p.scores.length,1);
+    return Math.min(10, avg);
+  });
+
+  // 파이프 UI 업데이트
+  pipeScores.forEach((sc, i) => {
+    const pct = sc * 10;
+    const cls = sc >= 6 ? 'r' : sc >= 3 ? 'a' : 'g';
+    const label = sc >= 6 ? '🔴 경색' : sc >= 3 ? '🟡 마찰' : '🟢 정상';
+    const seg = document.getElementById('pipe'+i);
+    const arr = document.getElementById('parr'+i);
+    if (seg) { seg.className='pipe-seg '+cls; }
+    if (arr && i<3) { arr.className='pipe-arrow '+cls; }
+    const lbl = document.getElementById('plbl'+i);
+    if (lbl) lbl.className = 'ps-label '+cls;
+    const bar = document.getElementById('pbar'+i);
+    if (bar) { bar.style.width=pct+'%'; bar.style.background = cls==='r'?'var(--red)':cls==='a'?'var(--amber)':'var(--green)'; }
+    const ndl = document.getElementById('pndl'+i);
+    if (ndl) ndl.style.left = pct+'%';
+    const scr = document.getElementById('pscr'+i);
+    if (scr) { scr.textContent=sc.toFixed(1); scr.className='ps-score '+cls; }
+    const sts = document.getElementById('psts'+i);
+    if (sts) sts.textContent=label;
+  });
+
+  // 종합 스트레스 계산
+  const wTotal = Object.values(weights).reduce((a,b)=>a+b,0)||100;
+  const totalScore = Math.min(10, pipeScores.reduce((a,b)=>a+b,0)/4 );
+
+  const cls = totalScore>=6?'r':totalScore>=3?'a':'g';
+  const badge = totalScore>=6?'🔴 경색':totalScore>=3?'🟡 마찰':'🟢 확장 국면';
+  const pct = totalScore*10;
+
+  ['srScore','sbScore'].forEach(id => { const e=document.getElementById(id); if(e) e.textContent=totalScore.toFixed(1); });
+  ['srNeedle','sbNeedle'].forEach(id => { const e=document.getElementById(id); if(e) e.style.left=pct+'%'; });
+  const srB = document.getElementById('srBadge');
+  if (srB) { srB.textContent=badge; srB.style.background=`var(--${cls==='g'?'g':cls==='a'?'a':'r'}bg)`; srB.style.color=`var(--${cls==='g'?'g':cls==='a'?'a':'r'}tx)`; }
+  const sbB = document.getElementById('sbBadge');
+  if (sbB) { sbB.textContent=badge; sbB.style.background=`var(--${cls==='g'?'g':cls==='a'?'a':'r'}bg)`; sbB.style.color=`var(--${cls==='g'?'g':cls==='a'?'a':'r'}tx)`; }
+}
+
+// ═══════════════════════════════════════════
+// 수익률 곡선 SVG
+// ═══════════════════════════════════════════
+function drawYieldCurve(y2, y5, y10, y30) {
+  const pts = [[50,y2],[150,y5],[300,y10],[450,y30]];
+  const minY = Math.min(...pts.map(p=>p[1])) - 0.2;
+  const maxY = Math.max(...pts.map(p=>p[1])) + 0.2;
+  const range = maxY - minY || 1;
+  const mapY = v => 85 - ((v-minY)/range)*70;
+  const coords = pts.map(([x,y]) => `${x},${mapY(y)}`).join(' ');
+  const svg = document.getElementById('ycSvg');
+  if (!svg) return;
+  svg.innerHTML = `
+    <defs><linearGradient id="ycg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0969DA" stop-opacity=".2"/>
+      <stop offset="100%" stop-color="#0969DA" stop-opacity="0"/>
+    </linearGradient></defs>
+    <polygon points="${coords} 450,90 50,90" fill="url(#ycg)"/>
+    <polyline points="${coords}" fill="none" stroke="#0969DA" stroke-width="2"/>
+    ${pts.map(([x,y]) => `<circle cx="${x}" cy="${mapY(y)}" r="3" fill="#0969DA"/>`).join('')}
+    <text x="50"  y="97" font-size="8" fill="var(--txt2)" text-anchor="middle" font-family="monospace">2Y</text>
+    <text x="150" y="97" font-size="8" fill="var(--txt2)" text-anchor="middle" font-family="monospace">5Y</text>
+    <text x="300" y="97" font-size="8" fill="var(--txt2)" text-anchor="middle" font-family="monospace">10Y</text>
+    <text x="450" y="97" font-size="8" fill="var(--txt2)" text-anchor="middle" font-family="monospace">30Y</text>
+    ${pts.map(([x,y]) => `<text x="${x}" y="${mapY(y)-7}" font-size="7" fill="var(--txt2)" text-anchor="middle" font-family="monospace">${y.toFixed(2)}%</text>`).join('')}
+  `;
+}
+
+// ═══════════════════════════════════════════
+// 배관 스트레스 판정 테이블
+// ═══════════════════════════════════════════
+function buildPlumbingTable(data) {
+  const rows = [
+    {label:'은행 준비금',        val:data.reserves,  fmt:(v)=>v?`$${v.toFixed(2)}T`:'—', warn:'$2.5T',      crisis:'$2.0T',      sc:data.reserveScore||0},
+    {label:'SOFR–IORB 스프레드',val:data.sofrIorb,  fmt:(v)=>v!=null?`${(v*100).toFixed(1)}bp`:'—', warn:'+5bp', crisis:'+10bp', sc:data.sofrScore||0},
+    {label:'역레포 (ON RRP)',    val:data.rrp,       fmt:(v)=>v?`$${v.toFixed(3)}T`:'—', warn:'$0.05T',    crisis:'$0T',        sc:data.rrpScore||0},
+    {label:'TGA 잔고',           val:data.tga,       fmt:(v)=>v?`$${v.toFixed(2)}T`:'—', warn:'+$500B/주', crisis:'+$1T/주',    sc:data.tgaScore||0},
+    {label:'HY OAS',             val:data.hyoas,     fmt:(v)=>v?`${v.toFixed(0)}bp`:'—', warn:'400bp',     crisis:'600bp',      sc:data.hyScore||0},
+    {label:'MMF 총자산',         val:data.mmf,       fmt:(v)=>v?`$${v.toFixed(2)}T`:'—', warn:'감소세',    crisis:'−$500B',     sc:data.mmfScore||0},
+    {label:'광의 달러지수',      val:data.bdxy,      fmt:(v)=>v?v.toFixed(1):'—',         warn:'3M +3%',    crisis:'3M +6%',     sc:data.dxyScore||0},
+    {label:'SLOOS 대출 기준',    val:data.sloos,     fmt:(v)=>v?`${v.toFixed(1)}%`:'—',   warn:'10%',       crisis:'40%',        sc:data.sloosScore||0},
+    {label:'SOFR',               val:data.sofr,      fmt:(v)=>v?`${v.toFixed(2)}%`:'—',   warn:'—',         crisis:'—',          sc:0},
+    {label:'IORB',               val:data.iorb,      fmt:(v)=>v?`${v.toFixed(2)}%`:'—',   warn:'—',         crisis:'—',          sc:0},
+    {label:'준비금+역레포 버퍼', val:data.buffer,    fmt:(v)=>v?`$${v.toFixed(2)}T`:'—',  warn:'$2.5T',     crisis:'$2.0T',      sc:(data.buffer&&data.buffer<2.0)?10:(data.buffer&&data.buffer<2.5)?5:0},
+    {label:'PD 순포지션',        val:null,           fmt:()=>'NY Fed 주간',                warn:'+$80B',     crisis:'+$120B',     sc:0},
+  ];
+  const tbody = document.getElementById('plumbingTbl');
+  if (!tbody) return;
+  tbody.innerHTML = rows.map(r => {
+    const cls = r.sc>=6?'r':r.sc>=3?'a':'g';
+    const pill = r.sc>=6?'🔴 경색':r.sc>=3?'🟡 주의':'🟢 정상';
+    return `<tr><td>${r.label}</td><td class="mono">${r.fmt(r.val)}</td><td class="mono" style="color:var(--txt2)">${r.warn}</td><td class="mono" style="color:var(--txt2)">${r.crisis}</td><td><span class="pill p-${cls}">${pill}</span></td></tr>`;
+  }).join('');
+}
+
+function buildRealEconTable(data) {
+  const rows = [
+    {label:'실업률', val:data.unrate, unit:'%', warn:'4.5%', crisis:'5.5%', sc: data.unrate>5.5?10:data.unrate>4.5?5:0},
+    {label:'샴 룰 지수', val:data.sahm, unit:'', warn:'0.3', crisis:'0.5', sc: data.sahm>0.5?10:data.sahm>0.3?5:0},
+    {label:'ISM 제조업 PMI', val:data.ism_mfg, unit:'', warn:'50', crisis:'45', sc: data.ism_mfg<45?10:data.ism_mfg<50?5:0},
+    {label:'CPI YoY', val:data.cpi, unit:'%', warn:'2.5%', crisis:'4%', sc: data.cpi>4?10:data.cpi>2.5?5:0},
+  ];
+  const tbody = document.getElementById('realEconTbl');
+  if (!tbody) return;
+  tbody.innerHTML = rows.map(r => {
+    const cls = r.sc>=6?'r':r.sc>=3?'a':'g';
+    const pill = r.sc>=6?'🔴 경색':r.sc>=3?'🟡 주의':'🟢 정상';
+    const valStr = r.val!=null ? (r.unit==='%'?`${r.val.toFixed(2)}%`:`${r.val.toFixed(2)}`) : '—';
+    return `<tr><td>${r.label}</td><td class="mono">${valStr}</td><td class="mono" style="color:var(--txt2)">${r.warn}</td><td class="mono" style="color:var(--txt2)">${r.crisis}</td><td><span class="pill p-${cls}">${pill}</span></td></tr>`;
+  }).join('');
+}
+
+// ═══════════════════════════════════════════
+// 메인 데이터 로딩
+// ═══════════════════════════════════════════
+async function loadAllFRED() {
+  setStatus('FRED','로딩중','var(--amber)');
+
+  // 배치 1: A 모듈 (배관)
+  const batch1 = ['TOTRESNS','SOFR','IORB','RRPONTSYD','WTREGEN',
+                   'BAMLH0A0HYM2','DTWEXBGS','DRTSCILM','WRMFNS'];
+  // 배치 2: B 모듈 (금리)
+  const batch2 = ['DGS2','DGS5','DGS10','DGS30','T10Y2Y','T10Y3M','DFII10','T10YIE','EFFR'];
+  // 배치 3: C 모듈 (물가)
+  const batch3 = ['CPIAUCSL','CPILFESL','PPIACO','PCEPI','MICH',
+                   'DCOILWTICO','DCOILBRENTEU','DHHNGSP','PCOPPUSDM','PALUMUSDM','PWHEAMTUSDM'];
+  // 배치 4: D+E 모듈 (실물)
+  const batch4 = ['UNRATE','PAYEMS','ICSA','SAHMREALTIME','CIVPART','USSLIND',
+                   'UMCSENT','CSCICP03USM665S','RSAFS','PSAVERT','DRCCLACBS'];
+  // 배치 5: F 모듈 (글로벌)
+  const batch5 = ['VIXCLS','SP500','GOLDAMGBD228NLBM'];
+
+  try {
+    const allBatches = [...batch1,...batch2,...batch3,...batch4,...batch5];
+    const results = await Promise.allSettled(allBatches.map(id => fredFetch(id)));
+
+    const d = {};
+    results.forEach((r,i) => {
+      const id = allBatches[i];
+      if (r.status==='fulfilled') {
+        const {v,p,d:date,delta} = getLatest(r.value.obs);
+        d[id] = {v,p,date,delta};
+      }
+    });
+
+    // ─── A모듈 표시 ───
+    const res = d['TOTRESNS']?.v; // 백만 달러
+    const rrp = d['RRPONTSYD']?.v;
+    const sofr = d['SOFR']?.v;
+    const iorb = d['IORB']?.v;
+    const tga = d['WTREGEN']?.v;
+    const hyoas = d['BAMLH0A0HYM2']?.v;
+    const bdxy = d['DTWEXBGS']?.v;
+    const sloos = d['DRTSCILM']?.v;
+    const mmf = d['WRMFNS']?.v;
+    const sofrIorb = (sofr!==null&&iorb!==null) ? sofr-iorb : null;
+    const buffer = (res!==null&&rrp!==null) ? (res+rrp)/1e6 : null; // 조 달러
+
+    // 점수 계산
+    const reserveScore = res ? (res/1e6 < 2.0 ? 10 : res/1e6 < 2.5 ? 5 : 0) : 0;
+    const sofrScore    = sofrIorb ? (sofrIorb > 10 ? 10 : sofrIorb > 5 ? 5 : 0) : 0;
+    const rrpScore     = rrp ? (rrp/1e6 < 0.05 ? 5 : 0) : 5;
+    const tgaScore     = 0; // 주간 변화율 기반 — 단순화
+    const hyScore      = hyoas ? (hyoas > 600 ? 10 : hyoas > 400 ? 5 : 0) : 0;
+    const mmfScore     = 0;
+    const dxyScore     = 0;
+    const sloosScore   = sloos ? (sloos > 40 ? 10 : sloos > 10 ? 5 : 0) : 0;
+
+    Object.assign(latestData, {
+      reserves:res/1e6, rrp:rrp?rrp/1e6:null, sofr, iorb, sofrIorb,
+      buffer: (res!==null&&rrp!==null)?(res+rrp)/1e6:null,
+      tga:tga?tga/1e6:null, hyoas, bdxy, sloos, mmf:mmf?mmf/1e6:null,
+      reserveScore, sofrScore, rrpScore, tgaScore, hyScore, mmfScore, dxyScore, sloosScore
+    });
+
+    setKpi('A1', fmt(res/1e6,'T'), deltaStr(d['TOTRESNS']?.delta/1e6,'T'), reserveScore>=6?'r':reserveScore>=3?'a':'g');
+    setKpi('A2', sofr ? sofr.toFixed(2)+'%':'—', deltaStr(d['SOFR']?.delta,'%'), 'g');
+    setKpi('A3', iorb ? iorb.toFixed(2)+'%':'—', deltaStr(d['IORB']?.delta,'%'), 'g');
+    setKpi('A4', sofrIorb!==null ? (sofrIorb*100).toFixed(1)+'bp':'—', '', sofrScore>=6?'r':sofrScore>=3?'a':'g');
+    setKpi('A5', fmt(rrp/1e6,'T'), '', rrpScore>=3?'a':'g');
+    setKpi('A6', buffer!==null?`$${buffer.toFixed(2)}T`:'—', '', 'g');
+    setKpi('A7', fmt(tga/1e6,'T'), deltaStr(d['WTREGEN']?.delta/1e6,'T'), 'g');
+    setKpi('A8', hyoas ? hyoas.toFixed(0)+'bp':'—', deltaStr(d['BAMLH0A0HYM2']?.delta,'bp'), hyScore>=6?'r':hyScore>=3?'a':'g');
+    setKpi('A9', bdxy ? bdxy.toFixed(1):'—', deltaStr(d['DTWEXBGS']?.delta), 'g');
+    setKpi('A10', sloos ? sloos.toFixed(1)+'%':'—', '', sloosScore>=6?'r':sloosScore>=3?'a':'g');
+    setKpi('A11', fmt(mmf/1e6,'T'), '', 'g');
+
+    // ─── B모듈 표시 ───
+    const y2=d['DGS2']?.v, y5=d['DGS5']?.v, y10=d['DGS10']?.v, y30=d['DGS30']?.v;
+    const sp2s10s=d['T10Y2Y']?.v, sp3m10y=d['T10Y3M']?.v, tips=d['DFII10']?.v, bei=d['T10YIE']?.v, effr=d['EFFR']?.v;
+
+    setKpi('B1', y2?y2.toFixed(2)+'%':'—', deltaStr(d['DGS2']?.delta,'%'));
+    setKpi('B2', y5?y5.toFixed(2)+'%':'—', deltaStr(d['DGS5']?.delta,'%'));
+    setKpi('B3', y10?y10.toFixed(2)+'%':'—', deltaStr(d['DGS10']?.delta,'%'));
+    setKpi('B4', y30?y30.toFixed(2)+'%':'—', deltaStr(d['DGS30']?.delta,'%'));
+    setKpi('B5', sp2s10s!==null?(sp2s10s*100).toFixed(1)+'bp':'—', '', sp2s10s<-0.5?'r':sp2s10s<0?'a':'g');
+    setKpi('B6', sp3m10y!==null?(sp3m10y*100).toFixed(1)+'bp':'—', '', sp3m10y<-0.5?'r':sp3m10y<0?'a':'g');
+    setKpi('B7', tips?tips.toFixed(2)+'%':'—', '');
+    setKpi('B8', bei?bei.toFixed(2)+'%':'—', '');
+    setKpi('B9', effr?effr.toFixed(2)+'%':'—', '');
+    if (y2&&y5&&y10&&y30) drawYieldCurve(y2,y5,y10,y30);
+
+    // ─── C모듈 표시 ───
+    const cpiYoY = computeYoY(d['CPIAUCSL']?.v, d['CPIAUCSL']?.p);
+    const coreCpiYoY = computeYoY(d['CPILFESL']?.v, d['CPILFESL']?.p);
+    const ppiYoY = computeYoY(d['PPIACO']?.v, d['PPIACO']?.p);
+    const pceYoY = computeYoY(d['PCEPI']?.v, d['PCEPI']?.p);
+
+    setKpi('C1', cpiYoY?cpiYoY.toFixed(2)+'%':'—', '', cpiYoY>4?'r':cpiYoY>2.5?'a':'g');
+    setKpi('C2', coreCpiYoY?coreCpiYoY.toFixed(2)+'%':'—', '', coreCpiYoY>4?'r':coreCpiYoY>2.5?'a':'g');
+    setKpi('C3', ppiYoY?ppiYoY.toFixed(2)+'%':'—', '');
+    setKpi('C4', pceYoY?pceYoY.toFixed(2)+'%':'—', '');
+    setKpi('C5', d['MICH']?.v?d['MICH'].v.toFixed(1)+'%':'—', '');
+    setKpi('C6', d['DCOILWTICO']?.v?'$'+d['DCOILWTICO'].v.toFixed(2):'—', '');
+    setKpi('C7', d['DCOILBRENTEU']?.v?'$'+d['DCOILBRENTEU'].v.toFixed(2):'—', '');
+    setKpi('C8', d['DHHNGSP']?.v?'$'+d['DHHNGSP'].v.toFixed(3):'—', '');
+    setKpi('C10', d['PCOPPUSDM']?.v?'$'+d['PCOPPUSDM'].v.toFixed(0):'—', '');
+    setKpi('C11', d['PALUMUSDM']?.v?'$'+d['PALUMUSDM'].v.toFixed(0):'—', '');
+    setKpi('C12', d['PWHEAMTUSDM']?.v?'$'+d['PWHEAMTUSDM'].v.toFixed(0):'—', '');
+
+    // ─── D+E모듈 표시 ───
+    const unrate=d['UNRATE']?.v, payems=d['PAYEMS']?.v, icsa=d['ICSA']?.v;
+    const sahm=d['SAHMREALTIME']?.v, lfpr=d['CIVPART']?.v, lei=d['USSLIND']?.v;
+
+    setKpi('D1', unrate?unrate.toFixed(1)+'%':'—', '', unrate>5.5?'r':unrate>4.5?'a':'g');
+    setKpi('D2', payems?(payems/1e3).toFixed(0)+'K':'—', '');
+    setKpi('D3', icsa?icsa.toFixed(0):'—', '');
+    setKpi('D4', sahm!==null?sahm.toFixed(2):'—', '0.5 = 침체신호', sahm>0.5?'r':sahm>0.3?'a':'g');
+    setKpi('D7', lfpr?lfpr.toFixed(1)+'%':'—', '');
+    setKpi('D8', lei?lei.toFixed(1):'—', '');
+
+    const umcsent=d['UMCSENT']?.v, cbcc=d['CSCICP03USM665S']?.v;
+    const rsafs=d['RSAFS']?.v, psav=d['PSAVERT']?.v, ccdelq=d['DRCCLACBS']?.v;
+    setKpi('E1', umcsent?umcsent.toFixed(1):'—', '');
+    setKpi('E2', cbcc?cbcc.toFixed(1):'—', '');
+    setKpi('E3', rsafs?'$'+rsafs.toFixed(0)+'M':'—', '');
+    setKpi('E4', psav?psav.toFixed(1)+'%':'—', '');
+    setKpi('E5', ccdelq?ccdelq.toFixed(2)+'%':'—', '');
+
+    // ─── F모듈 표시 ───
+    const vix=d['VIXCLS']?.v, sp500=d['SP500']?.v, gold=d['GOLDAMGBD228NLBM']?.v;
+    setKpi('F2', bdxy?bdxy.toFixed(1):'—', '');
+    setKpi('F3', gold?'$'+gold.toFixed(0):'—', '');
+    setKpi('F6', vix?vix.toFixed(1):'—', '', vix>30?'r':vix>20?'a':'g');
+    setKpi('F7', sp500?sp500.toFixed(0):'—', '');
+
+    // ─── 한미 10Y 스프레드 (KTB 데이터 없음 → 표시만) ───
+    setKpi('F9', '—', 'KTB 데이터 수동 추가 필요', '');
+
+    // 테이블 업데이트
+    Object.assign(latestData, {
+      cpi:cpiYoY, ism_mfg:null, unrate, sahm
+    });
+    buildPlumbingTable(latestData);
+    buildRealEconTable(latestData);
+
+    computeStress();
+    setStatus('FRED','연결됨','var(--green)');
+    document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString('ko-KR');
+
+  } catch(e) {
+    setStatus('FRED','오류','var(--red)');
+    console.error('FRED load error:', e);
+  }
+}
+
+function computeYoY(v, p) {
+  if (v===null||p===null||p===0) return null;
+  return ((v-p)/p)*100;
+}
+
+// ═══════════════════════════════════════════
+// CoinGecko 데이터
+// ═══════════════════════════════════════════
+async function loadCoinGecko() {
+  setStatus('CG','로딩중','var(--amber)');
+  try {
+    const cKey = 'coingecko_main';
+    let data = getCached(cKey);
+    if (!data) {
+      const resp = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum&vs_currencies=usd&include_24hr_change=true&include_market_cap=true');
+      data = await resp.json();
+      setCache(cKey, data);
+    }
+    const btc = data.bitcoin, eth = data.ethereum;
+
+    setKpi('G1', btc?'$'+btc.usd.toLocaleString():'—', btc?(btc.usd_24h_change?.toFixed(2)+'%'):'', btc?.usd_24h_change>0?'g':'r');
+    setKpi('G2', eth?'$'+eth.usd.toLocaleString():'—', eth?(eth.usd_24h_change?.toFixed(2)+'%'):'', eth?.usd_24h_change>0?'g':'r');
+    document.getElementById('m-usdkrw') && (document.getElementById('m-usdkrw').textContent = '—'); // Yahoo 필요
+
+    // 도미넌스
+    const gKey = 'coingecko_global';
+    let gdata = getCached(gKey);
+    if (!gdata) {
+      const gr = await fetch('https://api.coingecko.com/api/v3/global');
+      gdata = await gr.json();
+      setCache(gKey, gdata);
+    }
+    const btcDom = gdata?.data?.market_cap_percentage?.btc;
+    setKpi('G3', btcDom?btcDom.toFixed(1)+'%':'—', btcDom>60?'↑ 리스크오프':'', btcDom>60?'r':btcDom>50?'a':'g');
+
+    // 스테이블코인
+    const usdt = gdata?.data?.market_cap_percentage?.usdt;
+    const usdc = gdata?.data?.market_cap_percentage?.usdc;
+    setKpi('G5', (usdt&&usdc)?(usdt+usdc).toFixed(1)+'%':'—', 'USDT+USDC 점유율');
+
+    // 사이드바 크립토 F&G
+    const fgKey = 'fng';
+    let fgData = getCached(fgKey);
+    if (!fgData) {
+      const fr = await fetch('https://api.alternative.me/fng/?limit=2');
+      fgData = await fr.json();
+      setCache(fgKey, fgData);
+    }
+    const fng = fgData?.data?.[0];
+    const fngPrev = fgData?.data?.[1];
+    if (fng) {
+      const val = parseInt(fng.value);
+      const lbl = fng.value_classification;
+      const color = val<25?'var(--rtx)':val<50?'var(--atx)':val>75?'var(--gtx)':'var(--atx)';
+      setFG('Crypto', val, lbl, val, fngPrev?`전일 ${fngPrev.value} → ${val}`:'', color);
+      setKpi('G4', val.toString(), lbl, val<25?'r':val<50?'a':'g');
+      document.getElementById('m-crypto') && (document.getElementById('m-crypto').textContent = val);
+    }
+
+    setStatus('CG','연결됨','var(--green)');
+  } catch(e) {
+    setStatus('CG','오류','var(--red)');
+  }
+}
+
+function setFG(type, num, lbl, pct, delta, color) {
+  const ne = document.getElementById('fg'+type);
+  const le = document.getElementById('fg'+type+'lbl');
+  const be = document.getElementById('fg'+type+'bar');
+  const de = document.getElementById('fg'+type+'d');
+  if (ne) { ne.textContent = num; ne.style.color = color; }
+  if (le) { le.textContent = lbl; le.style.color = color; }
+  if (be) be.style.width = pct+'%';
+  if (de) de.textContent = delta;
+}
+
+// CNN F&G — CORS 문제로 직접 호출 불가, Worker 확장 필요 시까지 고정값
+function loadCNNFG() {
+  // CNN F&G API는 공개 엔드포인트 없음 → 추후 Worker에 추가
+  setFG('CNN', '—', '데이터 준비중', 50, 'Worker 업데이트 필요', 'var(--txt2)');
+  document.getElementById('m-cnn') && (document.getElementById('m-cnn').textContent = '—');
+}
+
+// ═══════════════════════════════════════════
+// H.4.1 (연준 대차대조표)
+// ═══════════════════════════════════════════
+async function loadH41() {
+  setStatus('H41','로딩중','var(--amber)');
+  try {
+    const cKey = 'h41';
+    let data = getCached(cKey);
+    if (!data) {
+      const resp = await fetch(`${WORKER}/h41`);
+      data = await resp.json();
+      setCache(cKey, data);
+    }
+    if (data?.data) {
+      const d = data.data;
+      const dateStr = d.releaseDate || '—';
+      document.getElementById('h41date').textContent = `H.4.1 기준 · ${dateStr}`;
+      document.getElementById('fedUpdated').textContent = dateStr;
+      document.getElementById('fedSbDate').textContent = `(last updated ${dateStr})`;
+
+      const ta   = d.totalAssets;
+      const tres = d.treasurySecurities;
+      const mbs  = d.mbsHoldings;
+      const res  = d.totalReserves;
+      const rrp  = d.reverseRepo;
+      const tga  = d.tgaBalance;
+
+      document.getElementById('h41content').innerHTML = `
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div>
+            <div style="font-size:9px;font-weight:700;color:var(--txt2);text-transform:uppercase;margin-bottom:5px;">자산 변동</div>
+            <div class="popup-row"><span class="popup-key">총 자산</span><span class="popup-v n">${ta?'$'+(ta/1e3).toFixed(2)+'T':'—'}</span></div>
+            <div class="popup-row"><span class="popup-key">국채 보유</span><span class="popup-v n">${tres?'$'+(tres/1e3).toFixed(2)+'T':'—'}</span></div>
+            <div class="popup-row"><span class="popup-key">MBS 보유</span><span class="popup-v n">${mbs?'$'+(mbs/1e3).toFixed(2)+'T':'—'}</span></div>
+            <div class="popup-row"><span class="popup-key">은행 준비금</span><span class="popup-v g">${res?'$'+(res/1e3).toFixed(2)+'T':'—'}</span></div>
+            <div class="popup-row"><span class="popup-key">역레포 (RRP)</span><span class="popup-v n">${rrp?'$'+(rrp/1e3).toFixed(2)+'T':'—'}</span></div>
+            <div class="popup-row"><span class="popup-key">TGA 잔고</span><span class="popup-v n">${tga?'$'+(tga/1e3).toFixed(2)+'T':'—'}</span></div>
+          </div>
+          <div>
+            <div style="font-size:9px;font-weight:700;color:var(--txt2);text-transform:uppercase;margin-bottom:5px;">해석</div>
+            <div style="font-size:10px;color:var(--txt2);line-height:1.7;">
+              H.4.1 파싱 완료.<br>
+              상세 만기 구조(Table 5)는 Worker 업그레이드 후 제공됩니다.
+            </div>
+          </div>
+        </div>
+        <div class="popup-ai"><strong>🤖 자동 해석:</strong> H.4.1 데이터 로드 완료. 준비금·TGA·RRP 삼각 흐름을 지속 모니터링 중. 만기별 구조 분석은 다음 업데이트에서 제공됩니다.</div>
+      `;
+    }
+    setStatus('H41','연결됨','var(--green)');
+  } catch(e) {
+    setStatus('H41','오류','var(--red)');
+    document.getElementById('h41content').innerHTML = '<div style="color:var(--rtx);font-size:10px;">H.4.1 로딩 실패: '+e.message+'</div>';
+  }
+}
+
+// ═══════════════════════════════════════════
+// 상태 표시
+// ═══════════════════════════════════════════
+function setStatus(id, text, color) {
+  const dotMap = {FRED:'dotFRED', CG:'dotCG', H41:'dotH41'};
+  const txtMap = {FRED:'stFRED', CG:'stCG', H41:'stH41'};
+  const dot = document.getElementById(dotMap[id]);
+  const txt = document.getElementById(txtMap[id]);
+  if (dot) dot.style.background = color;
+  if (txt) { txt.textContent = text; txt.style.color = color; }
+}
+
+// ═══════════════════════════════════════════
+// 가중치
+// ═══════════════════════════════════════════
+function loadWeights() {
+  try {
+    const raw = localStorage.getItem('ml_weights');
+    return raw ? {...DEFAULT_WEIGHTS, ...JSON.parse(raw)} : {...DEFAULT_WEIGHTS};
+  } catch { return {...DEFAULT_WEIGHTS}; }
+}
+function saveWeights() {
+  const rows = document.querySelectorAll('#weightRows input[type=range]');
+  rows.forEach(inp => { weights[inp.dataset.key] = parseInt(inp.value); });
+  localStorage.setItem('ml_weights', JSON.stringify(weights));
+  closePopup('weight');
+  computeStress();
+}
+function resetWeights() {
+  weights = {...DEFAULT_WEIGHTS};
+  localStorage.removeItem('ml_weights');
+  buildWeightUI();
+}
+function buildWeightUI() {
+  const labels = {plumbing:'금융 배관 (A)', rates:'금리·채권 (B)', inflation:'물가·원자재 (C)', employment:'고용·경기 (D)', consumer:'소비·신뢰 (E)', global:'글로벌 (F)'};
+  document.getElementById('weightRows').innerHTML = Object.entries(weights).map(([k,v]) => `
+    <div class="weight-row">
+      <span class="weight-lbl">${labels[k]||k}</span>
+      <input type="range" min="0" max="60" step="5" value="${v}" data-key="${k}" oninput="this.nextElementSibling.textContent=this.value+'%'">
+      <span class="weight-val">${v}%</span>
+    </div>
+  `).join('');
+}
+
+// 가중치 팝업 열릴 때 UI 구성
+const origOpen = openPopup;
+window.openPopup = function(id) {
+  if (id==='weight') buildWeightUI();
+  origOpen(id);
+};
+
+// ═══════════════════════════════════════════
+// 초기화
+// ═══════════════════════════════════════════
+async function init() {
+  await Promise.all([
+    loadAllFRED(),
+    loadCoinGecko(),
+    loadH41(),
+  ]);
+  loadCNNFG();
+}
+
+init();
+// 30분마다 자동 갱신
+setInterval(init, 30 * 60 * 1000);
+</script>
+</body>
+</html>

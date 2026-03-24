@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>MacroLens Debug</title>
+<style>
+body{font-family:monospace;padding:20px;background:#0d1117;color:#e6edf3;}
+.ok{color:#3fb950;}.err{color:#f85149;}.warn{color:#f0b429;}.info{color:#58a6ff;}
+.box{background:#161b22;border:1px solid #30363d;border-radius:6px;padding:12px;margin:10px 0;}
+pre{white-space:pre-wrap;word-break:break-all;font-size:11px;margin:0;}
+h2{color:#f0b429;margin-bottom:4px;font-size:13px;}
+button{background:#238636;color:#fff;border:none;padding:6px 14px;border-radius:4px;cursor:pointer;font-size:12px;margin:4px;}
+button:hover{background:#2ea043;}
+.result{margin-top:6px;}
+</style>
+</head>
+<body>
+<h1 style="color:#f0b429;margin-bottom:20px;">🔧 MacroLens 데이터 연결 진단</h1>
+
+<div class="box">
+  <h2>Worker URL</h2>
+  <pre id="workerUrl"></pre>
+</div>
+
+<button onclick="testAll()">🚀 전체 테스트 실행</button>
+<button onclick="testFRED()">FRED 테스트</button>
+<button onclick="testH41()">H.4.1 테스트</button>
+<button onclick="testCoinGecko()">CoinGecko 테스트</button>
+<button onclick="testFNG()">Fear&Greed 테스트</button>
+
+<div id="results"></div>
+
+<script>
+const WORKER = 'https://macrolens-worker.macrolens.workers.dev';
+document.getElementById('workerUrl').textContent = WORKER;
+
+function log(id, html) {
+  let el = document.getElementById('res-'+id);
+  if (!el) {
+    const div = document.createElement('div');
+    div.className = 'box';
+    div.innerHTML = `<h2>${id}</h2><div class="result" id="res-${id}"></div>`;
+    document.getElementById('results').appendChild(div);
+    el = document.getElementById('res-'+id);
+  }
+  el.innerHTML = html;
+}
+
+async function testFRED() {
+  log('FRED', '<span class="warn">테스트 중...</span>');
+  const testSeries = ['SOFR','IORB','TOTRESNS','RRPONTSYD','DGS10'];
+  const results = [];
+  for (const id of testSeries) {
+    try {
+      const t0 = Date.now();
+      const r = await fetch(`${WORKER}/fred?series_id=${id}&limit=2`);
+      const ms = Date.now()-t0;
+      const j = await r.json();
+      const latest = j.observations?.filter(o=>o.value!='.')?.[0];
+      results.push(`<span class="ok">✓ ${id}</span>: ${latest?.value} (${latest?.date}) — ${ms}ms`);
+    } catch(e) {
+      results.push(`<span class="err">✗ ${id}</span>: ${e.message}`);
+    }
+  }
+  log('FRED', results.map(r=>`<pre>${r}</pre>`).join(''));
+}
+
+async function testH41() {
+  log('H41', '<span class="warn">테스트 중...</span>');
+  try {
+    const t0 = Date.now();
+    const r = await fetch(`${WORKER}/h41`);
+    const ms = Date.now()-t0;
+    const j = await r.json();
+    log('H41', `<pre><span class="ok">✓ 응답: ${ms}ms</span>\n${JSON.stringify(j, null, 2).slice(0,500)}...</pre>`);
+  } catch(e) {
+    log('H41', `<pre><span class="err">✗ ${e.message}</span></pre>`);
+  }
+}
+
+async function testCoinGecko() {
+  log('CoinGecko', '<span class="warn">테스트 중...</span>');
+  try {
+    const t0 = Date.now();
+    const r = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum&vs_currencies=usd&include_24hr_change=true');
+    const ms = Date.now()-t0;
+    const j = await r.json();
+    log('CoinGecko', `<pre><span class="ok">✓ 응답: ${ms}ms</span>\nBTC: $${j.bitcoin?.usd?.toLocaleString()} (${j.bitcoin?.usd_24h_change?.toFixed(2)}%)\nETH: $${j.ethereum?.usd?.toLocaleString()} (${j.ethereum?.usd_24h_change?.toFixed(2)}%)</pre>`);
+  } catch(e) {
+    log('CoinGecko', `<pre><span class="err">✗ ${e.message}</span></pre>`);
+  }
+}
+
+async function testFNG() {
+  log('FearGreed', '<span class="warn">테스트 중...</span>');
+  try {
+    const t0 = Date.now();
+    const r = await fetch('https://api.alternative.me/fng/?limit=2');
+    const ms = Date.now()-t0;
+    const j = await r.json();
+    const d = j.data?.[0];
+    log('FearGreed', `<pre><span class="ok">✓ 응답: ${ms}ms</span>\n지수: ${d?.value} — ${d?.value_classification}</pre>`);
+  } catch(e) {
+    log('FearGreed', `<pre><span class="err">✗ ${e.message}</span></pre>`);
+  }
+}
+
+async function testAll() {
+  document.getElementById('results').innerHTML = '';
+  await Promise.all([testFRED(), testH41(), testCoinGecko(), testFNG()]);
+}
+
+// 자동 실행
+testAll();
+</script>
+</body>
+</html>
