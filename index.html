@@ -956,17 +956,23 @@ async function loadAllFRED() {
 
   // 배치 1: A 모듈 (배관)
   const batch1 = ['TOTRESNS','SOFR','IORB','RRPONTSYD','WTREGEN',
-                   'BAMLH0A0HYM2','DTWEXBGS','DRTSCILM','WRMFNS'];
+                   'BAMLH0A0HYM2','DTWEXBGS','DRTSCILM','WRMFNS','WRMFSL'];
   // 배치 2: B 모듈 (금리)
   const batch2 = ['DGS2','DGS5','DGS10','DGS30','T10Y2Y','T10Y3M','DFII10','T10YIE','EFFR'];
   // 배치 3: C 모듈 (물가)
+  // CPMNACSABB(중국PMI) → FRED 없음, NAPMPMI(ISM) → FRED 없음 → 제외
   const batch3 = ['CPIAUCSL','CPILFESL','PPIACO','PCEPI','MICH',
-                   'DCOILWTICO','DCOILBRENTEU','DHHNGSP','PCOPPUSDM','PALUMUSDM','PWHEAMTUSDM'];
+                   'DCOILWTICO','DCOILBRENTEU','DHHNGSP',
+                   'PCOPPUSDM','PALUMUSDM','PWHEAMTUSDM'];
   // 배치 4: D+E 모듈 (실물)
   const batch4 = ['UNRATE','PAYEMS','ICSA','SAHMREALTIME','CIVPART','USSLIND',
+                   'MANEMP',
                    'UMCSENT','CSCICP03USM665S','RSAFS','PSAVERT','DRCCLACBS'];
   // 배치 5: F 모듈 (글로벌)
-  const batch5 = ['VIXCLS','SP500','GOLDAMGBD228NLBM'];
+  // GOLDAMGBD228NLBM(금 AM Fix) → GOLDPMGBD228NLBM(PM Fix)으로 교체
+  // SLVPRUSD(은) → FRED 없음 → Yahoo Finance 필요, 일단 제외
+  // PDPOSCLC → HTTP 400, NY Fed 직접 접근으로만 처리
+  const batch5 = ['VIXCLS','SP500','GOLDPMGBD228NLBM','DEXKOUS','DEXJPUS'];
 
   try {
     const allBatches = [...batch1,...batch2,...batch3,...batch4,...batch5];
@@ -1059,11 +1065,14 @@ async function loadAllFRED() {
     // ─── D+E모듈 표시 ───
     const unrate=d['UNRATE']?.v, payems=d['PAYEMS']?.v, icsa=d['ICSA']?.v;
     const sahm=d['SAHMREALTIME']?.v, lfpr=d['CIVPART']?.v, lei=d['USSLIND']?.v;
+    const manemp=d['MANEMP']?.v; // 제조업 고용 (ISM PMI 대체)
 
     setKpi('D1', unrate?unrate.toFixed(1)+'%':'—', '', unrate>5.5?'r':unrate>4.5?'a':'g');
     setKpi('D2', payems?(payems/1e3).toFixed(0)+'K':'—', '');
     setKpi('D3', icsa?icsa.toFixed(0):'—', '');
     setKpi('D4', sahm!==null?sahm.toFixed(2):'—', '0.5 = 침체신호', sahm>0.5?'r':sahm>0.3?'a':'g');
+    setKpi('D5', manemp?manemp.toFixed(0)+'K':'—', 'ISM PMI → FRED 미제공, 제조업 고용 대체');
+    setKpi('D6', '—', 'ISM 서비스업 PMI → FRED 미제공');
     setKpi('D7', lfpr?lfpr.toFixed(1)+'%':'—', '');
     setKpi('D8', lei?lei.toFixed(1):'—', '');
 
@@ -1076,18 +1085,58 @@ async function loadAllFRED() {
     setKpi('E5', ccdelq?ccdelq.toFixed(2)+'%':'—', '');
 
     // ─── F모듈 표시 ───
-    const vix=d['VIXCLS']?.v, sp500=d['SP500']?.v, gold=d['GOLDAMGBD228NLBM']?.v;
-    setKpi('F2', bdxy?bdxy.toFixed(1):'—', '');
-    setKpi('F3', gold?'$'+gold.toFixed(0):'—', '');
-    setKpi('F6', vix?vix.toFixed(1):'—', '', vix>30?'r':vix>20?'a':'g');
-    setKpi('F7', sp500?sp500.toFixed(0):'—', '');
+    const vix   = d['VIXCLS']?.v;
+    const sp500 = d['SP500']?.v;
+    const gold  = d['GOLDPMGBD228NLBM']?.v;  // PM Fix (AM Fix 단종)
+    const usdkrw = d['DEXKOUS']?.v;  // Won per USD
+    const usdjpy = d['DEXJPUS']?.v;  // Yen per USD
+    const jpykrw = (usdkrw && usdjpy) ? usdkrw / usdjpy : null;
 
-    // ─── 한미 10Y 스프레드 (KTB 데이터 없음 → 표시만) ───
-    setKpi('F9', '—', 'KTB 데이터 수동 추가 필요', '');
+    // 사이드바 환율 표시
+    if (usdkrw) {
+      document.getElementById('fxUSDKRW').textContent = usdkrw.toFixed(1);
+      const dKRW = d['DEXKOUS']?.delta;
+      const fxKRWchg = document.getElementById('fxUSDKRWd');
+      if (fxKRWchg && dKRW !== null) {
+        fxKRWchg.textContent = (dKRW >= 0 ? '+' : '') + dKRW.toFixed(1);
+        fxKRWchg.className = 'fx-chg ' + (dKRW > 0 ? 'up' : 'dn');
+      }
+    }
+    if (usdjpy) {
+      document.getElementById('fxUSDJPY').textContent = usdjpy.toFixed(2);
+      const dJPY = d['DEXJPUS']?.delta;
+      const fxJPYchg = document.getElementById('fxUSDJPYd');
+      if (fxJPYchg && dJPY !== null) {
+        fxJPYchg.textContent = (dJPY >= 0 ? '+' : '') + dJPY.toFixed(2);
+        fxJPYchg.className = 'fx-chg ' + (dJPY > 0 ? 'up' : 'dn');
+      }
+    }
+    if (jpykrw) {
+      document.getElementById('fxJPYKRW').textContent = jpykrw.toFixed(3);
+    }
+    // 모바일 상단 환율
+    if (document.getElementById('m-usdkrw') && usdkrw) document.getElementById('m-usdkrw').textContent = usdkrw.toFixed(1);
+    if (document.getElementById('m-usdjpy') && usdjpy) document.getElementById('m-usdjpy').textContent = usdjpy.toFixed(2);
+    if (document.getElementById('m-vix') && vix)    document.getElementById('m-vix').textContent = vix.toFixed(1);
+
+    // Global 탭 KPI
+    setKpi('F2', bdxy ? bdxy.toFixed(1) : '—', '');
+    setKpi('F3', gold ? '$' + gold.toFixed(0) : '—', 'LBMA PM Fix');
+    setKpi('F4', '—', 'Yahoo Finance SI=F 필요');  // 은: FRED 없음
+    setKpi('F5', '—', 'Gold/Silver 비율');          // GSR: 은 데이터 없어 보류
+    setKpi('F6', vix  ? vix.toFixed(1) : '—',  '', vix>30?'r':vix>20?'a':'g');
+    setKpi('F7', sp500 ? Number(sp500).toLocaleString() : '—', '');
+    setKpi('F8', '—', 'Yahoo Finance EEM 필요');
+
+    // 한미 10Y 스프레드 = DGS10(US) - DGS10_KR (KTB 없음 → 표시)
+    const us10y = d['DGS10']?.v;
+    if (us10y) {
+      setKpi('F9', us10y.toFixed(2) + '% (US)', 'KTB 추가 시 스프레드 계산', '');
+    }
 
     // 테이블 업데이트
     Object.assign(latestData, {
-      cpi:cpiYoY, ism_mfg:null, unrate, sahm
+      cpi: cpiYoY, ism_mfg: null, unrate, sahm, usdkrw, usdjpy
     });
     buildPlumbingTable(latestData);
     buildRealEconTable(latestData);
@@ -1124,7 +1173,11 @@ async function loadCoinGecko() {
 
     setKpi('G1', btc?'$'+btc.usd.toLocaleString():'—', btc?(btc.usd_24h_change?.toFixed(2)+'%'):'', btc?.usd_24h_change>0?'g':'r');
     setKpi('G2', eth?'$'+eth.usd.toLocaleString():'—', eth?(eth.usd_24h_change?.toFixed(2)+'%'):'', eth?.usd_24h_change>0?'g':'r');
-    document.getElementById('m-usdkrw') && (document.getElementById('m-usdkrw').textContent = '—'); // Yahoo 필요
+    // BTC 시가총액
+    if (btc?.usd_market_cap) {
+      const mcap = (btc.usd_market_cap / 1e12).toFixed(2);
+      document.getElementById('btcChartMsg') && (document.getElementById('btcChartMsg').textContent = `BTC 시총: $${mcap}T`);
+    }
 
     // 도미넌스
     const gKey = 'coingecko_global';
