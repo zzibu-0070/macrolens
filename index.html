@@ -415,7 +415,6 @@ input[type=range]{flex:1;accent-color:var(--amber);}
         <div class="card" id="kC10"><div class="kp-name">구리</div><div class="kp-val loading" id="vC10">로딩중</div><div class="kp-delta" id="dC10">—</div></div>
         <div class="card" id="kC11"><div class="kp-name">알루미늄</div><div class="kp-val loading" id="vC11">로딩중</div><div class="kp-delta" id="dC11">—</div></div>
         <div class="card" id="kC12"><div class="kp-name">밀 (Wheat)</div><div class="kp-val loading" id="vC12">로딩중</div><div class="kp-delta" id="dC12">—</div></div>
-        <div class="card" id="kC13"><div class="kp-name">중국 PMI (교차검증)</div><div class="kp-val loading" id="vC13">로딩중</div><div class="kp-delta" id="dC13">—</div></div>
       </div>
     </div>
 
@@ -1071,8 +1070,8 @@ async function loadAllFRED() {
     setKpi('D2', payems?(payems/1e3).toFixed(0)+'K':'—', '');
     setKpi('D3', icsa?icsa.toFixed(0):'—', '');
     setKpi('D4', sahm!==null?sahm.toFixed(2):'—', '0.5 = 침체신호', sahm>0.5?'r':sahm>0.3?'a':'g');
-    setKpi('D5', manemp?manemp.toFixed(0)+'K':'—', 'ISM PMI → FRED 미제공, 제조업 고용 대체');
-    setKpi('D6', '—', 'ISM 서비스업 PMI → FRED 미제공');
+    setKpi('D5', manemp?manemp.toFixed(0)+'K':'로딩중', '제조업 고용 (ISM API 별도)');
+    setKpi('D6', '—', 'ISM API 별도 로딩');
     setKpi('D7', lfpr?lfpr.toFixed(1)+'%':'—', '');
     setKpi('D8', lei?lei.toFixed(1):'—', '');
 
@@ -1122,8 +1121,8 @@ async function loadAllFRED() {
     // Global 탭 KPI
     setKpi('F2', bdxy ? bdxy.toFixed(1) : '—', '');
     setKpi('F3', gold ? '$' + gold.toFixed(0) : '—', 'LBMA PM Fix');
-    setKpi('F4', '—', 'Yahoo Finance SI=F 필요');  // 은: FRED 없음
-    setKpi('F5', '—', 'Gold/Silver 비율');          // GSR: 은 데이터 없어 보류
+    setKpi('F4', '—', 'Yahoo 로딩중...');
+    setKpi('F5', '—', 'Yahoo 로딩중...');
     setKpi('F6', vix  ? vix.toFixed(1) : '—',  '', vix>30?'r':vix>20?'a':'g');
     setKpi('F7', sp500 ? Number(sp500).toLocaleString() : '—', '');
     setKpi('F8', '—', 'Yahoo Finance EEM 필요');
@@ -1346,6 +1345,105 @@ window.openPopup = function(id) {
 };
 
 // ═══════════════════════════════════════════
+// ISM PMI — DBnomics via Worker
+// ═══════════════════════════════════════════
+async function loadISM() {
+  try {
+    const cKey = 'ism_pmi';
+    let data = getCached(cKey);
+    if (!data) {
+      const resp = await fetch(`${WORKER}/ism`);
+      if (!resp.ok) throw new Error(`ISM HTTP ${resp.status}`);
+      data = await resp.json();
+      setCache(cKey, data);
+    }
+    const mfg = data.manufacturing;
+    const svc = data.services;
+
+    if (mfg && mfg.value !== null) {
+      const v = parseFloat(mfg.value);
+      const cls = v < 45 ? 'r' : v < 50 ? 'a' : 'g';
+      setKpi('D5', v.toFixed(1), (mfg.delta ? (mfg.delta > 0 ? '+' : '') + mfg.delta.toFixed(1) : '') + '  ' + mfg.date, cls);
+      Object.assign(latestData, { ism_mfg: v });
+    } else if (mfg?.error) {
+      setKpi('D5', '—', 'DBnomics: ' + mfg.error);
+    }
+
+    if (svc && svc.value !== null) {
+      const v = parseFloat(svc.value);
+      const cls = v < 45 ? 'r' : v < 50 ? 'a' : 'g';
+      setKpi('D6', v.toFixed(1), (svc.delta ? (svc.delta > 0 ? '+' : '') + svc.delta.toFixed(1) : '') + '  ' + svc.date, cls);
+    } else if (svc?.error) {
+      setKpi('D6', '—', 'DBnomics: ' + svc.error);
+    }
+  } catch(e) {
+    setKpi('D5', '—', 'ISM 로딩 실패: ' + e.message);
+    setKpi('D6', '—', 'ISM 로딩 실패');
+    console.error('ISM load error:', e);
+  }
+}
+
+// ═══════════════════════════════════════════
+// Yahoo Finance — SRUUF, Silver, DXY ICE, EEM
+// ═══════════════════════════════════════════
+async function loadYahoo() {
+  try {
+    const tickers = ['SRUUF', 'SI=F', 'DX-Y.NYB', 'EEM'];
+    const cKey = 'yahoo_main';
+    let data = getCached(cKey);
+    if (!data) {
+      const resp = await fetch(`${WORKER}/yahoo?tickers=${tickers.join(',')}`);
+      if (!resp.ok) throw new Error(`Yahoo Worker HTTP ${resp.status}`);
+      data = await resp.json();
+      setCache(cKey, data);
+    }
+    const q = data.quotes || {};
+
+    // C-09 우라늄 (SRUUF)
+    const sruuf = q['SRUUF'];
+    if (sruuf?.price) {
+      setKpi('C9', '$' + sruuf.price.toFixed(2),
+        sruuf.pctChange ? (sruuf.pctChange > 0 ? '+' : '') + sruuf.pctChange.toFixed(2) + '%' : '');
+    }
+
+    // F-04 은 (SI=F)
+    const silver = q['SI=F'];
+    if (silver?.price) {
+      setKpi('F4', '$' + silver.price.toFixed(2),
+        silver.pctChange ? (silver.pctChange > 0 ? '+' : '') + silver.pctChange.toFixed(2) + '%' : '');
+      // F-05 금은 비율
+      const goldEl = document.getElementById('vF3');
+      const goldVal = goldEl ? parseFloat(goldEl.textContent.replace('$','')) : null;
+      if (goldVal && !isNaN(goldVal)) {
+        const gsr = goldVal / silver.price;
+        setKpi('F5', gsr.toFixed(1), gsr > 80 ? '80↑ 은 저평가' : '정상 구간', gsr > 90 ? 'r' : gsr > 80 ? 'a' : 'g');
+      }
+    }
+
+    // F-01 DXY (ICE)
+    const dxy = q['DX-Y.NYB'];
+    if (dxy?.price) {
+      setKpi('F1', dxy.price.toFixed(2),
+        dxy.pctChange ? (dxy.pctChange > 0 ? '+' : '') + dxy.pctChange.toFixed(2) + '%' : '');
+    }
+
+    // F-08 MSCI EM (EEM)
+    const eem = q['EEM'];
+    if (eem?.price) {
+      setKpi('F8', '$' + eem.price.toFixed(2),
+        eem.pctChange ? (eem.pctChange > 0 ? '+' : '') + eem.pctChange.toFixed(2) + '%' : '',
+        eem.pctChange > 0 ? 'g' : 'r');
+    }
+
+  } catch(e) {
+    setKpi('C9', '—', 'Yahoo 연결 실패');
+    setKpi('F1', '—', 'Yahoo 연결 실패');
+    setKpi('F4', '—', 'Yahoo 연결 실패');
+    console.error('Yahoo load error:', e);
+  }
+}
+
+// ═══════════════════════════════════════════
 // 초기화
 // ═══════════════════════════════════════════
 async function init() {
@@ -1353,6 +1451,8 @@ async function init() {
     loadAllFRED(),
     loadCoinGecko(),
     loadH41(),
+    loadISM(),
+    loadYahoo(),
   ]);
   loadCNNFG();
 }
