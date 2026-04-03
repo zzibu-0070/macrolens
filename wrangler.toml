@@ -1,0 +1,14 @@
+name = "macrolens-worker"
+main = "worker.js"
+compatibility_date = "2024-01-01"
+
+[[kv_namespaces]]
+binding    = "MMF_KV"
+id         = "66c313c710a04a4eb04775b80a44f313"
+preview_id = "66c313c710a04a4eb04775b80a44f313"
+
+[triggers]
+crons = [
+  "0 1 * * *",    # 매일 새벽 — 일반 데이터 갱신
+  "0 15 * * 3",   # 매주 수요일 10시 ET (=15 UTC) — QRA 감지
+]
